@@ -8,7 +8,22 @@ public class MBGame : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
+		PublicDependencyModuleNames.AddRange(new string[] {
+			"Core",
+			"CoreUObject",
+			"Engine",
+			"InputCore",
+			//
+			// Online features
+			"OnlineSubsystem",
+			"OnlineSubsystemSteam",
+			"VoiceChat",
+			//
+			// UMG, Slate and SlateCore are for the UserWidget class.
+			"UMG",
+			"Slate",
+			"SlateCore"
+		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
