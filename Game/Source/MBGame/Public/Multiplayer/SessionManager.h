@@ -17,7 +17,7 @@
 //
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FManagerOnCreateSessionComplete, bool bWasSuccessful);
-DECLARE_MULTICAST_DELEGATE_OneParam(FManagerOnJoinSessionComplete, FString Address);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FManagerOnJoinSessionComplete, FString Address, EOnJoinSessionCompleteResult::Type Result);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FManagerOnFindSessionsComplete, bool bWasSuccessful, const TArray<FOnlineSessionSearchResult>& SessionResults);
 DECLARE_MULTICAST_DELEGATE_OneParam(FManagerOnDestroySessionComplete, bool bWasSuccessful);
 DECLARE_MULTICAST_DELEGATE_OneParam(FManagerOnStartSessionComplete, bool bWasSuccessful);

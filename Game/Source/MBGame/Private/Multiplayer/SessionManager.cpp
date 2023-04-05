@@ -4,7 +4,9 @@
 #include "Multiplayer/SessionManager.h"
 #include "OnlineSessionSettings.h"
 #include "OnlineSubsystem.h"
-
+#include "AdvancedSessions.h"
+#include "AdvancedSessionsLibrary.h"
+#include "CreateSessionCallbackProxyAdvanced.h"
 
 
 USessionManager::USessionManager():
@@ -22,8 +24,6 @@ USessionManager::USessionManager():
 void USessionManager::CreateSession()
 {
 	if (!SessionInterface) return;
-	FString SubsystemName = IOnlineSubsystem::Get()->GetSubsystemName().ToString();
-	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Online Subsystem: %s"), *SubsystemName));
 
 	// Destroy current session if it exists.
 	if (auto const ExistingSession = SessionInterface->GetNamedSession(NAME_GameSession); ExistingSession != nullptr)
@@ -34,27 +34,37 @@ void USessionManager::CreateSession()
 		return;
 	}
 	
-	TSharedPtr<FOnlineSessionSettings> const SessionSettings = MakeShared<FOnlineSessionSettings>();
-	SessionSettings->bIsLANMatch = IOnlineSubsystem::Get()->GetSubsystemName() == "NULL";
-	SessionSettings->NumPublicConnections = 2;
-	SessionSettings->bShouldAdvertise = true;
-	SessionSettings->bUsesPresence = true;
-	SessionSettings->BuildUniqueId = 1;
-	SessionSettings->Set(SETTING_MAPNAME, FString("TestMap"), EOnlineDataAdvertisementType::ViaOnlineService);
-	LastSessionSettings = MakeShared<FOnlineSessionSettings>(*SessionSettings);
+	// log subsystem name
+	FString SubsystemName = IOnlineSubsystem::Get()->GetSubsystemName().ToString();
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Online Subsystem: %s"), *SubsystemName));
+	
+	LastSessionSettings = MakeShared<FOnlineSessionSettings>();
+	LastSessionSettings->bIsLANMatch = IOnlineSubsystem::Get()->GetSubsystemName() == "NULL";
+	LastSessionSettings->bShouldAdvertise = IOnlineSubsystem::Get()->GetSubsystemName() != "NULL";
+	UE_LOG(LogTemp, Warning, TEXT("Is LAN match: %s"), LastSessionSettings->bIsLANMatch ? TEXT("true") : TEXT("false"));
+	UE_LOG(LogTemp, Warning, TEXT("Should advertise: %s"), LastSessionSettings->bShouldAdvertise ? TEXT("true") : TEXT("false"));
+	
+	LastSessionSettings->NumPublicConnections = 4;
+	LastSessionSettings->bUsesPresence = true;
+	LastSessionSettings->bAllowJoinViaPresence = true;
+	LastSessionSettings->BuildUniqueId = 1;
+	LastSessionSettings->bAllowJoinInProgress = true;
+	
+	
 	
 	OnCreateSessionCompleteDelegateHandle = SessionInterface->AddOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegate);
-	if (!SessionInterface->CreateSession(*GetWorld()->GetFirstLocalPlayerFromController()->GetPreferredUniqueNetId(), NAME_GameSession, *SessionSettings))
+	if (!SessionInterface->CreateSession(*GetWorld()->GetFirstLocalPlayerFromController()->GetPreferredUniqueNetId(), NAME_GameSession, *LastSessionSettings))
 	{
 		ManagerOnStartSessionComplete.Broadcast(false);
 	}
 }
 
+
 void USessionManager::JoinSession(const FOnlineSessionSearchResult& SessionResult)
 {
 	if(!SessionInterface.IsValid())
 	{
-		ManagerOnJoinSessionComplete.Broadcast(FString());
+		ManagerOnJoinSessionComplete.Broadcast(FString(), EOnJoinSessionCompleteResult::UnknownError);
 		return;
 	}
 	FString SubsystemName = IOnlineSubsystem::Get()->GetSubsystemName().ToString();
@@ -66,22 +76,26 @@ void USessionManager::JoinSession(const FOnlineSessionSearchResult& SessionResul
 	if(!SessionInterface->JoinSession(*LocalPlayer->GetPreferredUniqueNetId(), NAME_GameSession, SessionResult))
 	{
 		SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(OnJoinSessionCompleteDelegateHandle);
-		ManagerOnJoinSessionComplete.Broadcast(FString());
+		ManagerOnJoinSessionComplete.Broadcast(FString(), EOnJoinSessionCompleteResult::UnknownError);
 	}
 }
+
 
 void USessionManager::FindSessions()
 {
 	if(!SessionInterface.IsValid()) return;
-
-	OnFindSessionsCompleteDelegateHandle = SessionInterface->AddOnFindSessionsCompleteDelegate_Handle(OnFindSessionsCompleteDelegate);
+	UE_LOG(LogTemp, Warning, TEXT("USessionManager::FindSessions()"));
+	
+	// log subsystem name
+	FString SubsystemName = IOnlineSubsystem::Get()->GetSubsystemName().ToString();
+	GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, FString::Printf(TEXT("Online Subsystem: %s"), *SubsystemName));
 
 	LastSessionSearch = MakeShared<FOnlineSessionSearch>();
 	LastSessionSearch->MaxSearchResults = 10000;
 	LastSessionSearch->bIsLanQuery = IOnlineSubsystem::Get()->GetSubsystemName() == "NULL";
 	LastSessionSearch->QuerySettings.Set(SEARCH_PRESENCE, true, EOnlineComparisonOp::Equals);
-	// LastSessionSettings->bUseLobbiesIfAvailable = true;
-
+	
+	OnFindSessionsCompleteDelegateHandle = SessionInterface->AddOnFindSessionsCompleteDelegate_Handle(OnFindSessionsCompleteDelegate);
 	const ULocalPlayer* LocalPlayer = GetWorld()->GetFirstLocalPlayerFromController();
 	if(!SessionInterface->FindSessions(*LocalPlayer->GetPreferredUniqueNetId(), LastSessionSearch.ToSharedRef()))
 	{
@@ -89,6 +103,7 @@ void USessionManager::FindSessions()
 		ManagerOnFindSessionsComplete.Broadcast(false, TArray<FOnlineSessionSearchResult>());
 	}
 }
+
 
 void USessionManager::DestroySession()
 {
@@ -106,6 +121,7 @@ void USessionManager::DestroySession()
 	}
 }
 
+
 void USessionManager::StartSession()
 {
 }
@@ -122,14 +138,15 @@ void USessionManager::OnCreateSessionComplete(FName SessionName, bool bWasSucces
 	ManagerOnCreateSessionComplete.Broadcast(bWasSuccessful);
 }
 
+
 void USessionManager::OnJoinSessionComplete(FName SessionName, EOnJoinSessionCompleteResult::Type Result)
 {
 	if (SessionInterface) SessionInterface->ClearOnJoinSessionCompleteDelegate_Handle(OnJoinSessionCompleteDelegateHandle);
 	FString Address;
 	SessionInterface->GetResolvedConnectString(NAME_GameSession, Address);
-	if(GEngine) GEngine->AddOnScreenDebugMessage(-1, 15.f, FColor::Orange, FString::Printf(TEXT("Returning Address: %s"), *Address));
-	ManagerOnJoinSessionComplete.Broadcast(Address);
+	ManagerOnJoinSessionComplete.Broadcast(Address, Result);
 }
+
 
 void USessionManager::OnFindSessionsComplete(bool bWasSuccessful)
 {
@@ -137,18 +154,20 @@ void USessionManager::OnFindSessionsComplete(bool bWasSuccessful)
 	ManagerOnFindSessionsComplete.Broadcast(bWasSuccessful, LastSessionSearch->SearchResults);
 }
 
+
 void USessionManager::OnDestroySessionComplete(FName SessionName, bool bWasSuccessful)
 {
 	if(SessionInterface) SessionInterface->ClearOnDestroySessionCompleteDelegate_Handle(OnDestroySessionCompleteHandle);
 	ManagerOnDestroySessionComplete.Broadcast(bWasSuccessful);
 
-	// Create a new session if bCreateSessionOnDestroy.
+	// Create a new session if we were trying to create one before destroying the old one.
 	if(bWasSuccessful && bCreateSessionOnDestroy)
 	{
 		bCreateSessionOnDestroy = false;
 		CreateSession();
 	}
 }
+
 
 void USessionManager::OnStartSessionComplete(FName SessionName, bool bWasSuccessful)
 {

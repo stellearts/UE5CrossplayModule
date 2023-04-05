@@ -17,6 +17,12 @@ public class MBGame : ModuleRules
 			// Online features
 			"OnlineSubsystem",
 			"OnlineSubsystemSteam",
+			"OnlineSubsystemUtils",
+			// ASP
+			"AdvancedSessions",
+			"AdvancedSteamSessions",
+			//
+			// Voice chat
 			"VoiceChat",
 			//
 			// UMG, Slate and SlateCore are for the UserWidget class.
