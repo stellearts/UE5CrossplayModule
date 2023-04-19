@@ -87,6 +87,15 @@ void UCreateSessionCallbackProxyAdvanced::Activate()
 				Settings.Settings.Add(ExtraSettings[i].Key, ExtraSetting);
 			}
 			
+
+
+			/*
+			 CUSTOM CODE START
+			 */
+
+			
+			UE_LOG(LogTemp, Warning, TEXT("Subsystem: %s"), *Helper.OnlineSub->GetSubsystemName().ToString());
+			GEngine->AddOnScreenDebugMessage(-1, 5.f, FColor::Red, TEXT("Subsystem: ") + Helper.OnlineSub->GetSubsystemName().ToString());
 			
 			if (!bDedicatedServer )
 			{
@@ -103,8 +112,13 @@ void UCreateSessionCallbackProxyAdvanced::Activate()
 					OnFailure.Broadcast();
 				}
 			}
-			else
-				Sessions->CreateSession(0, NAME_GameSession, Settings);
+			else Sessions->CreateSession(0, NAME_GameSession, Settings);
+			
+			/*
+			 CUSTOM CODE END
+			 */
+
+			
 
 			// OnCreateCompleted will get called, nothing more to do now
 			return;

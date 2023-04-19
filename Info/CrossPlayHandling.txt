@@ -1,0 +1,83 @@
+Yes, you can use the Epic Online Services (EOS) SDK to create a cross-play experience in your game while still allowing players to play with others on their platform without linking their accounts to EOS.
+
+To achieve this, you can use the following approach:
+
+Set up EOS in your Unreal Engine 5 project and integrate the required services, such as matchmaking, lobbies, sessions, etc.
+
+Create a separate matchmaking system for each platform that you want to support. For example, if you want to support PC, PlayStation, and Xbox, create separate matchmaking systems for each of these platforms.
+
+When a player starts the game, check if their account is linked to EOS. If it is, enable cross-play matchmaking and connect the player to the EOS matchmaking system. Otherwise, use the platform-specific matchmaking system to connect the player with others on their platform.
+
+For players who choose not to link their accounts to EOS, create platform-specific lobbies or sessions to allow them to play with others on their platform.
+
+Ensure that players who have not linked their accounts to EOS cannot access cross-play features. This can be done by gating cross-play functionality behind the account linking process.
+
+By following this approach, you can offer cross-play to players who choose to link their accounts to EOS while still providing a seamless experience for those who prefer to play only with others on their platform. Keep in mind that you'll need to handle platform-specific requirements, such as authentication and networking, separately for each platform.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Party:
+
+* IOnlinePartyInterface is a part of Unreal Engine's OnlineSubsystem, which provides a common interface for handling party-related functionality across different platforms. However, it does not inherently support cross-play between different platforms by default. It is designed to work within the context of the platform-specific OnlineSubsystem that the player is currently using.
+For example, if a player is on Steam, the IOnlinePartyInterface methods would interact with the Steam OnlineSubsystem, and the player would only be able to create parties, join parties, or send invites to other players on the same platform (Steam).
+To enable cross-play between different platforms, you'll need to use the Epic Online Services (EOS) SDK, as it provides the necessary tools and services to handle cross-platform party management, matchmaking, and session management. By implementing the PartyManagerEOS class and using the EOS SDK, you can enable cross-play functionality for your game when the player chooses to do so.
+To summarize, IOnlinePartyInterface will work within the context of the platform the player is on, and it does not support cross-play by default. To enable cross-play, you'll need to use the EOS SDK and properly implement the required functionality in your PartyManagerEOS class.
+
+
+
+Platform-specific parties (cross-play disabled):
+
+Use IOnlinePartyInterface provided by the platform-specific OnlineSubsystem.
+Players will only be able to create and join parties within their platform (e.g., Steam-only or PS5-only parties).
+
+
+Cross-platform parties (cross-play enabled):
+
+Use the EOS SDK for party management, matchmaking, and session management.
+Players can create and join cross-platform parties and invite players from other platforms using the EOS friend system or other EOS services.
+
+
+
+
+Sessions:
+
+Here's a high-level overview of how you can implement each session manager class:
+
+SessionManagerDefault:
+
+Implement session management using the IOnlineSessionInterface methods provided by Unreal Engine's OnlineSubsystem.
+You'll need to get the current platform's OnlineSubsystem, and from there, you can access the IOnlineSessionInterface methods for session management.
+For example, to create a session on the default platform, you would call IOnlineSessionInterface::CreateSession() method.
+SessionManagerEOS:
+
+Implement session management using the Epic Online Services (EOS) SDK.
+You'll need to follow the EOS SDK documentation to set up and initialize the SDK in your game.
+Once set up, you can use the various EOS SDK features, such as Lobby (https://dev.epicgames.com/docs/services/en-US/Lobby/index.html) or Sessions (https://dev.epicgames.com/docs/services/en-US/Sessions/index.html), to handle cross-play session management.
+Since you're using the Advanced Sessions Plugin (ASP), you'll need to ensure that the plugin is compatible with your new session management classes. ASP extends the base IOnlineSessionInterface functionality, so you should be able to use it for the SessionManagerDefault. However, you may need to make some modifications to the plugin or create a custom version of it to work seamlessly with the EOS SDK for cross-play sessions in your SessionManagerEOS class.
+
+By implementing these two classes and using a proxy subsystem approach, you'll be able to switch between platform-specific and cross-play session management based on the player's cross-play setting.
