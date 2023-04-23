@@ -5,6 +5,8 @@
 #include "OnlineSubsystemEOSPlus.h"
 #include "EOSSettings.h"
 
+#include "OnlineSubsystemEOSPlus/Private/OnlineSessionEOSPlus.h" // CUSTOM INCLUDE
+
 #define EOSPLUS_ID_SEPARATOR TEXT("_+_")
 
 enum class EOSSValue : uint8
@@ -531,6 +533,21 @@ void FOnlineUserEOSPlus::OnEOSLoginChanged(int32 LocalUserNum)
 		// @todo joeg - should we force a logout of the platform? Things will be broken either way...
 		//		Logout(LocalUserNum);
 	}
+
+
+	
+	// CUSTOM CODE
+	
+	// @joeg - Don't know man, didn't make this system. Still have to fix it though.
+	// ( With fixing I mean change the bUseEOSSessions variable in FOnlineSessionEOSPlus in order to use Base-Subsystem )
+	
+	UE_LOG_ONLINE(Display, TEXT("FOnlineUserEOSPlus::OnEOSLoginChanged()"));
+	UE_LOG_ONLINE(Display, TEXT("FOnlineUserEOSPlus::LoginStatusChanged() - LoginStatus: %s"), LoginStatus == ELoginStatus::LoggedIn ? TEXT("Logged-In") : TEXT("Not Logged-In"));
+	
+	FOnlineSessionEOSPlusPtr EOSPlusSessionInterface = StaticCastSharedPtr<FOnlineSessionEOSPlus>(EOSPlus->GetSessionInterface());
+	EOSPlusSessionInterface->SetUseEOSSessions(LoginStatus == ELoginStatus::LoggedIn);
+
+	// END CUSTOM
 }
 
 void FOnlineUserEOSPlus::OnLoginStatusChanged(int32 LocalUserNum, ELoginStatus::Type OldStatus, ELoginStatus::Type NewStatus, const FUniqueNetId& NewId)

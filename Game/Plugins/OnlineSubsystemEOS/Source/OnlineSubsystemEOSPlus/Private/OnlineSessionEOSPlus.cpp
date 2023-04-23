@@ -357,6 +357,7 @@ FNamedOnlineSession* FOnlineSessionEOSPlus::AddNamedSession(FName SessionName, c
 bool FOnlineSessionEOSPlus::CreateSession(int32 HostingPlayerNum, FName SessionName, const FOnlineSessionSettings& NewSessionSettings)
 {
 	UE_LOG(LogTemp, Warning, TEXT("FOnlineSessionEOSPlus::CreateSession 1"));
+	UE_LOG(LogTemp, Warning, TEXT("bUseEOSSessions: %s"), bUseEOSSessions ? TEXT("true") : TEXT("false"));
 	
 	// If EOS is enabled, create there and mirror on platform and include EOS session info
 	if (bUseEOSSessions)

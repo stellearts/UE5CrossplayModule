@@ -175,4 +175,11 @@ private:
 
 	static FEOSSettings AutoGetSettings();
 	static const FEOSSettings& ManualGetSettings();
+
+	// CUSTOM
+public:
+	FORCEINLINE static void SetUseEAS(const bool bValue) { bRuntimeUseEAS = bValue; }
+
+// private:
+	inline static bool bRuntimeUseEAS = false;
 };
