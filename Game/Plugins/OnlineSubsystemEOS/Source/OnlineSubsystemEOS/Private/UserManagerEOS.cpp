@@ -1450,23 +1450,19 @@ FUniqueNetIdPtr FUserManagerEOS::CreateUniquePlayerId(const FString& InStr)
 
 ELoginStatus::Type FUserManagerEOS::GetLoginStatus(int32 LocalUserNum) const
 {
-	UE_LOG(LogTemp, Warning, TEXT("FUserManagerEOS::GetLoginStatus()"));
 	FUniqueNetIdEOSPtr UserId = GetLocalUniqueNetIdEOS(LocalUserNum);
 	if (UserId.IsValid())
 	{
 		return GetLoginStatus(*UserId);
 	}
-	UE_LOG(LogTemp, Warning, TEXT("FUserManagerEOS::GetLoginStatus() not valid"));
 	return ELoginStatus::NotLoggedIn;
 }
 
 ELoginStatus::Type FUserManagerEOS::GetLoginStatus(const FUniqueNetIdEOS& UserId) const
 {
-	// ue_log
-	UE_LOG(LogTemp, Warning, TEXT("FUserManagerEOS::GetLoginStatus()"));
 	FEOSSettings Settings = UEOSSettings::GetSettings();
 	// If the user isn't using EAS, then only check for a product user id
-	if (!Settings.bUseEAS || !UEOSSettings::bRuntimeUseEAS) // CUSTOM - !UEOSSettings::bRuntimeUseEAS
+	if (!Settings.bUseEAS)
 	{
 		const EOS_ProductUserId ProductUserId = UserId.GetProductUserId();
 		if (ProductUserId != nullptr)

@@ -78,7 +78,7 @@ PACKAGE_SCOPE:
 	IOnlineSubsystem* BaseOSS;
 	/** The EOS OSS that is being used in conjunction with the platform one */
 	IOnlineSubsystem* EosOSS;
-	
+
 	/** The stats interface that routes calls between the two OSSes */
 	FOnlineStatsEOSPlusPtr StatsInterfacePtr;
 	FOnlineAchievementsEOSPlusPtr AchievementsInterfacePtr;

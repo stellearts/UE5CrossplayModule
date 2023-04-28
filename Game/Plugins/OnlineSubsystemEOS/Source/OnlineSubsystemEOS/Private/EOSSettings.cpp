@@ -188,7 +188,7 @@ FEOSSettings UEOSSettings::ToNative() const
 	Native.bMirrorPresenceToEAS = bMirrorPresenceToEAS;
 	Algo::Transform(Artifacts, Native.Artifacts, &FArtifactSettings::ToNative);
 	Native.TitleStorageTags = TitleStorageTags;
-	
+
 	return Native;
 }
 

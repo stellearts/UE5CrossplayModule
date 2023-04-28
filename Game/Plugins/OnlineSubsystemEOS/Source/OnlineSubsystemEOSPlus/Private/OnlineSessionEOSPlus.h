@@ -110,14 +110,6 @@ PACKAGE_SCOPE:
 	IOnlineSessionPtr EOSSessionInterface;
 
 	TUniqueNetIdMap<TSharedRef<FOnlineSessionSearch>> CachedSearchSettingsPerSearchingUser;
-
-
-	
-	// CUSTOM CODE BELOW
-	FORCEINLINE void SetUseEOSSessions(const bool InValue) {bUseEOSSessions = InValue;} // Not actually needed because they kept the value public, but this is here for consistency and feels better.
-	
-	FOnCreateSessionCompleteDelegate OnCreateSessionCompleteDelegate;
-	FDelegateHandle OnCreateSessionCompleteDelegateHandle;
 };
 
 typedef TSharedPtr<FOnlineSessionEOSPlus, ESPMode::ThreadSafe> FOnlineSessionEOSPlusPtr;

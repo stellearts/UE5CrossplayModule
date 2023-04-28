@@ -7,9 +7,9 @@
 #include "OnlineUserEOSPlus.h"
 #include "EOSSettings.h"
 
-FOnlineSessionEOSPlus::FOnlineSessionEOSPlus(FOnlineSubsystemEOSPlus* InSubsystem):
-	EOSPlus(InSubsystem),
-	bUseEOSSessions(false)
+FOnlineSessionEOSPlus::FOnlineSessionEOSPlus(FOnlineSubsystemEOSPlus* InSubsystem)
+	: EOSPlus(InSubsystem)
+	, bUseEOSSessions(false)
 {
 	BaseSessionInterface = EOSPlus->BaseOSS->GetSessionInterface();
 	EOSSessionInterface = EOSPlus->EosOSS->GetSessionInterface();
@@ -19,14 +19,7 @@ FOnlineSessionEOSPlus::FOnlineSessionEOSPlus(FOnlineSubsystemEOSPlus* InSubsyste
 
 	BaseSessionInterface->AddOnSessionUserInviteAcceptedDelegate_Handle(FOnSessionUserInviteAcceptedDelegate::CreateRaw(this, &FOnlineSessionEOSPlus::OnSessionUserInviteAcceptedBase));
 	BaseSessionInterface->AddOnSessionInviteReceivedDelegate_Handle(FOnSessionInviteReceivedDelegate::CreateRaw(this, &FOnlineSessionEOSPlus::OnSessionInviteReceivedBase));
-	// BaseSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(FOnCreateSessionCompleteDelegate::CreateRaw(this, &FOnlineSessionEOSPlus::OnCreateSessionComplete)); // REMOVED. Also called when another subsystem creates a session. Changed to only be called when this class creates a session.
-
-	// CUSTOM CODE
-	OnCreateSessionCompleteDelegate = FOnCreateSessionCompleteDelegate::CreateLambda([this](FName SessionName, bool bWasSuccessful)
-	{
-		this->OnCreateSessionComplete(SessionName, bWasSuccessful);
-	});
-	
+	BaseSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(FOnCreateSessionCompleteDelegate::CreateRaw(this, &FOnlineSessionEOSPlus::OnCreateSessionComplete));
 
 	IOnlineSessionPtr PrimaryInterface = BaseSessionInterface;
 	if (bUseEOSSessions)
@@ -278,22 +271,13 @@ void FOnlineSessionEOSPlus::OnSessionFailure(const FUniqueNetId& Player, ESessio
 	TriggerOnSessionFailureDelegates(*PlusId, Failure);
 }
 
-
-/*
- * CONTAINS CUSTOM CODE
- * This callback is still called when creating a session with Steam, and will crash if we try to access the EOS session.
- */
 void FOnlineSessionEOSPlus::OnCreateSessionComplete(FName SessionName, bool bWasSuccessful)
 {
-	UE_LOG(LogTemp, Warning, TEXT("FOnlineSessionEOSPlus::OnCreateSessionComplete"));
-	BaseSessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegateHandle); // CUSTOM CODE.
-
 	// If this gets called after a successful base interface session creation, we'll set the LobbyId as a custom parameter and update the session
 	FNamedOnlineSession* BaseSession = BaseSessionInterface->GetNamedSession(SessionName);
-	if (bWasSuccessful && BaseSession != nullptr) // CUSTOM CODE. Added bWasSuccessful.
+	if (BaseSession != nullptr)
 	{
 		FNamedOnlineSession* EOSSession = EOSSessionInterface->GetNamedSession(SessionName);
-		if(!EOSSession) return; // CUSTOM CODE. Session might not exist if we're not using sessions created by EOS.
 
 		BaseSession->SessionSettings.Set(TEXT("EOSSessionId"), EOSSession->SessionInfo->GetSessionId().ToString(), EOnlineDataAdvertisementType::ViaOnlineService);
 		BaseSessionInterface->UpdateSession(SessionName, BaseSession->SessionSettings, true);
@@ -356,32 +340,28 @@ FNamedOnlineSession* FOnlineSessionEOSPlus::AddNamedSession(FName SessionName, c
 
 bool FOnlineSessionEOSPlus::CreateSession(int32 HostingPlayerNum, FName SessionName, const FOnlineSessionSettings& NewSessionSettings)
 {
-	UE_LOG(LogTemp, Warning, TEXT("FOnlineSessionEOSPlus::CreateSession 1"));
-	UE_LOG(LogTemp, Warning, TEXT("bUseEOSSessions: %s"), bUseEOSSessions ? TEXT("true") : TEXT("false"));
-	
 	// If EOS is enabled, create there and mirror on platform and include EOS session info
 	if (bUseEOSSessions)
 	{
 		OnCreateSessionCompleteDelegateHandleEOS = EOSSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(
 			FOnCreateSessionCompleteDelegate::CreateLambda([this, HostingPlayerNum](FName SessionName, bool bWasSuccessful)
 		{
-				
 #if CREATE_MIRROR_PLATFORM_SESSION
-				if (bWasSuccessful)
+			if (bWasSuccessful)
+			{
+				// We need the session settings & session id from EOS
+				FOnlineSessionSettings* Settings = EOSSessionInterface->GetSessionSettings(SessionName);
+				if (Settings != nullptr)
 				{
-					// We need the session settings & session id from EOS
-					FOnlineSessionSettings* Settings = EOSSessionInterface->GetSessionSettings(SessionName);
-					if (Settings != nullptr)
-					{
-						// Mirror in the base interface
-						BaseSessionInterface->CreateSession(HostingPlayerNum, SessionName, *Settings);
+					// Mirror in the base interface
+					BaseSessionInterface->CreateSession(HostingPlayerNum, SessionName, *Settings);
 
-						EOSSessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegateHandleEOS);
+					EOSSessionInterface->ClearOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegateHandleEOS);
 
-						return;
-					}
-					bWasSuccessful = false;
+					return;
 				}
+				bWasSuccessful = false;
+			}
 #endif
 
 			OnCreateSessionComplete(SessionName, bWasSuccessful);
@@ -390,21 +370,16 @@ bool FOnlineSessionEOSPlus::CreateSession(int32 HostingPlayerNum, FName SessionN
 		}));
 		return EOSSessionInterface->CreateSession(HostingPlayerNum, SessionName, NewSessionSettings);
 	}
-	
 	// Otherwise create the platform version
-	OnCreateSessionCompleteDelegateHandle = BaseSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegate); // CUSTOM CODE.
-	UE_LOG(LogTemp, Warning, TEXT("BaseSessionInterface: %s"), *EOSPlus->BaseOSS->GetSubsystemName().ToString());
-	return BaseSessionInterface->CreateSession(HostingPlayerNum, SessionName, NewSessionSettings);
+	return BaseSessionInterface->CreateSession(HostingPlayerNum, SessionName, NewSessionSettings);;
 }
 
 bool FOnlineSessionEOSPlus::CreateSession(const FUniqueNetId& HostingPlayerId, FName SessionName, const FOnlineSessionSettings& NewSessionSettings)
 {
-	UE_LOG(LogTemp, Warning, TEXT("FOnlineSessionEOSPlus::CreateSession 2"));
 	FString HostingPlayerIdStr = HostingPlayerId.ToString();
 	FUniqueNetIdEOSPlusPtr Id = GetNetIdPlus(HostingPlayerIdStr);
 	if (!Id.IsValid() || !Id->GetEOSNetId().IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("ID is not valid!"));
 		OnCreateSessionComplete(SessionName, false);
 		return false;
 	}
@@ -415,7 +390,6 @@ bool FOnlineSessionEOSPlus::CreateSession(const FUniqueNetId& HostingPlayerId, F
 		OnCreateSessionCompleteDelegateHandleEOS = EOSSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(
 			FOnCreateSessionCompleteDelegate::CreateLambda([this, HostingPlayerIdStr](FName SessionName, bool bWasSuccessful)
 				{
-				
 #if CREATE_MIRROR_PLATFORM_SESSION
 					if (bWasSuccessful)
 					{
@@ -443,10 +417,7 @@ bool FOnlineSessionEOSPlus::CreateSession(const FUniqueNetId& HostingPlayerId, F
 				}));
 		return EOSSessionInterface->CreateSession(*Id->GetEOSNetId(), SessionName, NewSessionSettings);
 	}
-	
 	// Otherwise create the platform version
-	OnCreateSessionCompleteDelegateHandle = BaseSessionInterface->AddOnCreateSessionCompleteDelegate_Handle(OnCreateSessionCompleteDelegate); // CUSTOM CODE.
-	UE_LOG(LogTemp, Warning, TEXT("BaseSessionInterface: %s"), *EOSPlus->BaseOSS->GetSubsystemName().ToString());
 	return BaseSessionInterface->CreateSession(*Id->GetBaseNetId(), SessionName, NewSessionSettings);;
 }
 

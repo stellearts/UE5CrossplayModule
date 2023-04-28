@@ -906,7 +906,6 @@ void FOnlineSessionEOS::OnJoinLobbyAccepted(const EOS_ProductUserId& LocalUserId
 
 bool FOnlineSessionEOS::CreateSession(int32 HostingPlayerNum, FName SessionName, const FOnlineSessionSettings& NewSessionSettings)
 {
-	UE_LOG(LogTemp, Warning, TEXT("FOnlineSessionEOS::CreateSession"));
 	uint32 Result = ONLINE_FAIL;
 
 	// Check for an existing session
