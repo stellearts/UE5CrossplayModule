@@ -11,6 +11,8 @@ public class MBGame : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		
 		PublicDependencyModuleNames.AddRange(new string[] {
+			// "SteamModule",
+			//
 			// Main dependencies
 			"Core",
 			"CoreUObject",

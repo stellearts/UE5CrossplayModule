@@ -3,9 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
+
+#pragma warning(push)
+#pragma warning(disable: 4996)
 #include "Steam/steam_api.h"
 #include "Steam/steam_api_common.h"
 #include "Steam/isteamuser.h"
+#pragma warning(pop)
+
 #include "SteamworksSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamSubsystem, Log, All);
@@ -14,7 +19,7 @@ inline DEFINE_LOG_CATEGORY(LogSteamSubsystem);
 #define LOG_STEAM_NULL UE_LOG(LogSteamSubsystem, Error, TEXT("Steam API is not initialized."));
 
 DECLARE_MULTICAST_DELEGATE(FOnEncryptedAppTicketReady);
-DECLARE_MULTICAST_DELEGATE(FOnAuthSessionTicketReady);
+DECLARE_MULTICAST_DELEGATE(FOnSessionTicketReady);
 
 
 
@@ -42,8 +47,12 @@ public:
     void OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* pEncryptedAppTicketResponse, bool bIOFailure);
 
 	// Auth Session Ticket
-	TArray<uint8> GetAuthSessionTicket();
-
+	TArray<uint8> SessionTicket;
+	FORCEINLINE TArray<uint8> GetSessionTicket() { return SessionTicket; }
+	TArray<uint8> RequestSessionTicketSteam();
+	FOnSessionTicketReady OnSessionTicketReady;
+	STEAM_CALLBACK(USteamworksSubsystem, OnSessionTicketResponse, GetAuthSessionTicketResponse_t);
+	
 private:
 	SteamNetworkingIdentity Identity;
 };

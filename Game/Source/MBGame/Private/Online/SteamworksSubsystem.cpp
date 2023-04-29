@@ -32,12 +32,12 @@ void USteamworksSubsystem::Deinitialize()
 void USteamworksSubsystem::InitializeSteamworks()
 {
 	// Steam DevAppID to 480 for testing.
-	if (SteamAPI_RestartAppIfNecessary(480))
-	{
-		// The app is being restarted to use the specified AppID; exit gracefully
-		FPlatformMisc::RequestExit(false);
-		return;
-	}
+	// if (SteamAPI_RestartAppIfNecessary(480))
+	// {
+	// 	// The app is being restarted to use the specified AppID; exit gracefully
+	// 	FPlatformMisc::RequestExit(false);
+	// 	return;
+	// }
 	
 	if (SteamAPI_Init())
 	{
@@ -135,29 +135,45 @@ TArray<uint8> USteamworksSubsystem::GetEncryptedAppTicket()
 
 
 /**
- * Will request an encrypted app ticket from Steam.
+ * Will request the session ticket from Steam.
  *
  * Calls OnEncryptedAppTicketResponse in this class when the request is done.
  *
  * This should only be called once, at the start of the game.
  */
-TArray<uint8> USteamworksSubsystem::GetAuthSessionTicket() {
+TArray<uint8> USteamworksSubsystem::RequestSessionTicketSteam() {
 	if (!SteamAPI_Init())
 	{
 		LOG_STEAM_NULL
 		return TArray<uint8>();
 	}
-	
+
+	UE_LOG(LogSteamSubsystem, Warning, TEXT("GetSessionTicket"));
+
 	uint8 TicketBuffer[1024];
 	uint32 TicketSize = 0;
 	Identity.SetSteamID(SteamUser()->GetSteamID());
-	const HAuthTicket AuthTicket = SteamUser()->GetAuthSessionTicket(TicketBuffer, sizeof(TicketBuffer), &TicketSize, &Identity);
-	
+	HAuthTicket AuthTicket = SteamUser()->GetAuthSessionTicket(TicketBuffer, sizeof(TicketBuffer), &TicketSize, &Identity);
+
 	if (AuthTicket == k_HAuthTicketInvalid)
 	{
 		UE_LOG(LogTemp, Error, TEXT("Failed to get Auth Session Ticket."));
 		return TArray<uint8>();
 	}
 
-	return TArray<uint8>(TicketBuffer, TicketSize);
+	SessionTicket = TArray<uint8>(TicketBuffer, TicketSize);
+	return SessionTicket;
+}
+
+void USteamworksSubsystem::OnSessionTicketResponse(GetAuthSessionTicketResponse_t *pParam)
+{
+	if (pParam->m_eResult == k_EResultOK)
+	{
+		UE_LOG(LogTemp, Log, TEXT("GetAuthSessionTicket: success, got ticket."));
+		OnSessionTicketReady.Broadcast();
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("GetAuthSessionTicket: failed, error code: %d."), pParam->m_eResult);
+	}
 }

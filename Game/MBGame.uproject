@@ -12,6 +12,11 @@
 				"Engine",
 				"UMG"
 			]
+		},
+		{
+			"Name": "SteamModule",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -46,12 +51,8 @@
 			"Enabled": false
 		},
 		{
-			"Name": "OnlineBase",
-			"Enabled": false
-		},
-		{
-			"Name": "OnlineSubsystem",
-			"Enabled": false
+			"Name": "OnlineSubsystemSteam",
+			"Enabled": true
 		}
 	]
 }
