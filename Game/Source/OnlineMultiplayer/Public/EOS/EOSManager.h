@@ -1,0 +1,56 @@
+﻿// Copyright © 2023 Melvin Brink
+
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Tickable.h"
+#include "eos_sdk.h"
+#include "Steam/SteamManager.h"
+
+DECLARE_LOG_CATEGORY_EXTERN(LogEOSSubsystem, Log, All);
+inline DEFINE_LOG_CATEGORY(LogEOSSubsystem);
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnSteamSessionTicketReady, TArray<uint8>);
+
+
+
+/**
+ * Singleton class for the EOS-SDK.
+ * Responsible for initializing the SDK and providing helper functions for other classes.
+ */
+class ONLINEMULTIPLAYER_API FEosManager final : public FTickableGameObject
+{
+	// Private constructor to prevent direct instantiation
+	FEosManager();
+	// Prevent copy-construction
+	FEosManager(const FEosManager&) = delete;
+	// Prevent assignment
+	FEosManager& operator=(const FEosManager&) = delete;
+	
+	virtual void Tick(float DeltaTime) override;
+	virtual bool IsTickable() const override;
+	virtual TStatId GetStatId() const override;
+	
+public:
+	static FEosManager& Get();
+	void Initialize();
+
+private:
+	void InitializeSdk();
+	void InitializePlatform();
+	EOS_EResult CreateIntegratedPlatform(EOS_Platform_Options& PlatformOptions);
+	void FreeIntegratedPlatform(EOS_Platform_Options& PlatformOptions);
+
+	void RequestSteamSessionTicket() const;
+	static void OnSteamSessionTicketResponse(TArray<uint8> Ticket);
+	FOnSteamSessionTicketReady OnSteamSessionTicketReady;
+
+
+public:
+	FORCEINLINE EOS_HPlatform GetPlatformHandle() const { return PlatformHandle; }
+
+private:
+	FSteamManager* SteamManager;
+	EOS_HPlatform PlatformHandle;
+	bool bIsInitialized = false;
+};

@@ -5,6 +5,11 @@
 	"Description": "",
 	"Modules": [
 		{
+			"Name": "OnlineMultiplayer",
+			"Type": "RuntimeNoCommandlet",
+			"LoadingPhase": "PostConfigInit"
+		},
+		{
 			"Name": "MBGame",
 			"Type": "Runtime",
 			"LoadingPhase": "Default",
@@ -12,11 +17,6 @@
 				"Engine",
 				"UMG"
 			]
-		},
-		{
-			"Name": "SteamModule",
-			"Type": "Runtime",
-			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
@@ -26,33 +26,6 @@
 			"TargetAllowList": [
 				"Editor"
 			]
-		},
-		{
-			"Name": "OnlineSubsystemIOS",
-			"Enabled": false,
-			"SupportedTargetPlatforms": [
-				"IOS",
-				"TVOS"
-			]
-		},
-		{
-			"Name": "OnlineSubsystemGooglePlay",
-			"Enabled": false,
-			"SupportedTargetPlatforms": [
-				"Android"
-			]
-		},
-		{
-			"Name": "OnlineSubsystemNull",
-			"Enabled": false
-		},
-		{
-			"Name": "OnlineSubsystemUtils",
-			"Enabled": false
-		},
-		{
-			"Name": "OnlineSubsystemSteam",
-			"Enabled": true
 		}
 	]
 }

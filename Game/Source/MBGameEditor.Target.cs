@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
-using System.Collections.Generic;
 
 public class MBGameEditorTarget : TargetRules
 {
@@ -16,6 +15,6 @@ public class MBGameEditorTarget : TargetRules
 
 	private void RegisterModulesCreatedByRider()
 	{
-		ExtraModuleNames.AddRange(new string[] { "SteamModule" });
+		ExtraModuleNames.AddRange(new string[] { "OnlineMultiplayer" });
 	}
 }
