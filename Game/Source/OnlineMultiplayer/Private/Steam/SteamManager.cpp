@@ -158,9 +158,9 @@ TArray<uint8> FSteamManager::GetEncryptedAppTicket()
 /**
  * Will request the session ticket from Steam.
  *
- * Calls OnSessionTicketResponse when a response from Steam is received.
+ * OnSessionTicketResponse will be called when the request is done.
  *
- * Broadcasts OnSessionTicketReady delegate when the ticket is already valid.
+ * Broadcasts OnSessionTicketReady delegate when the ticket is already valid. This will not call OnSessionTicketResponse.
  */
 void FSteamManager::RequestSessionTicket() {
 	if (!SteamAPI_Init())
@@ -171,7 +171,7 @@ void FSteamManager::RequestSessionTicket() {
 	
 	if(SessionTicket.Num())
 	{
-		// If the session ticket is ready and validated, don't request a new one.
+		// If the session ticket is ready/validated, don't request a new one.
 		if(bSessionTicketReady)
 		{
 			UE_LOG(LogSteamManager, Log, TEXT("Session ticket already validated."));
@@ -206,7 +206,7 @@ void FSteamManager::RequestSessionTicket() {
 }
 
 /**
- * Called on response from Steam after calling RequestSessionTicket.
+ * Called on response from Steam after calling GetAuthSessionTicket.
  *
  * Broadcasts OnSessionTicketReady delegate on success.
  */
@@ -221,5 +221,6 @@ void FSteamManager::OnSessionTicketResponse(GetAuthSessionTicketResponse_t *Resu
 	else
 	{
 		UE_LOG(LogSteamManager, Error, TEXT("OnSessionTicketResponse: failed, error code: [%d]."), Result->m_eResult);
+		OnSessionTicketReady.Broadcast(TArray<uint8>());
 	}
 }

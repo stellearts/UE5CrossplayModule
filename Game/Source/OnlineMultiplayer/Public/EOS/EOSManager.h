@@ -41,16 +41,17 @@ private:
 	EOS_EResult CreateIntegratedPlatform(EOS_Platform_Options& PlatformOptions);
 	void FreeIntegratedPlatform(EOS_Platform_Options& PlatformOptions);
 
-	void RequestSteamSessionTicket() const;
-	static void OnSteamSessionTicketResponse(TArray<uint8> Ticket);
-	FOnSteamSessionTicketReady OnSteamSessionTicketReady;
-
-
 public:
-	FORCEINLINE EOS_HPlatform GetPlatformHandle() const { return PlatformHandle; }
+	void RequestSteamSessionTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback);
 
 private:
+	static void OnSteamSessionTicketResponse(const TArray<uint8> Ticket);
+	TFunction<void(std::string TicketString)> SteamSessionTicketCallback;
+	
 	FSteamManager* SteamManager;
 	EOS_HPlatform PlatformHandle;
 	bool bIsInitialized = false;
+
+public:
+	FORCEINLINE EOS_HPlatform GetPlatformHandle() const { return PlatformHandle; }
 };

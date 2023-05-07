@@ -1,7 +1,9 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "EOS/Subsystems/AuthSubsystemEOS.h"
+
 #include "EOS/EOSManager.h"
+#include "eos_auth.h"
 
 
 void UAuthSubsystemEOS::Initialize(FSubsystemCollectionBase& Collection)
@@ -18,6 +20,8 @@ void UAuthSubsystemEOS::Initialize(FSubsystemCollectionBase& Collection)
 	
 	AuthHandle = EOS_Platform_GetAuthInterface(PlatformHandle);
 	ConnectHandle = EOS_Platform_GetConnectInterface(PlatformHandle);
+
+	LoginAuth();
 }
 
 
@@ -26,33 +30,27 @@ void UAuthSubsystemEOS::Initialize(FSubsystemCollectionBase& Collection)
 
 void UAuthSubsystemEOS::LoginAuth()
 {
-	// EosManager->OnSessionTicketSteamReady.AddLambda([this]
-	// {
-	// 	SteamManager->OnSessionTicketReady.Clear();
-	// 	
-	// 	const std::string Token = GetSessionTicketSteam();
-	// 	UE_LOG(LogEOSSubsystem, Log, TEXT("Token: %s"), *FString(Token.c_str()));
-	// 	
-	// 	EOS_Auth_Credentials Credentials;
-	// 	Credentials.ApiVersion = EOS_AUTH_CREDENTIALS_API_LATEST;
-	// 	Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_ExternalAuth;
-	// 	Credentials.ExternalType = EOS_EExternalCredentialType::EOS_ECT_STEAM_SESSION_TICKET;
-	// 	Credentials.Token = Token.c_str();
-	//
-	// 	EOS_Auth_LoginOptions Options;
-	// 	Options.ApiVersion = EOS_AUTH_LOGIN_API_LATEST;
-	// 	Options.Credentials = &Credentials;
-	// 	Options.ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_Presence;
-	//
-	// 	const EOS_HAuth AuthHandle = EOS_Platform_GetAuthInterface(EosPlatformHandle);
-	// 	if(!AuthHandle) return;
-	// 	EOS_Auth_Login(AuthHandle, &Options, this, OnLoginAuthComplete);
-	// });
-	// EosManager->RequestSessionTicketSteam();
+	if(!AuthHandle) return;
+	EosManager->RequestSteamSessionTicket([this](std::string TicketString)
+	{
+		EOS_Auth_Credentials Credentials;
+		Credentials.ApiVersion = EOS_AUTH_CREDENTIALS_API_LATEST;
+		Credentials.Type = EOS_ELoginCredentialType::EOS_LCT_ExternalAuth;
+		Credentials.ExternalType = EOS_EExternalCredentialType::EOS_ECT_STEAM_SESSION_TICKET;
+		Credentials.Token = TicketString.c_str();
+	
+		EOS_Auth_LoginOptions Options;
+		Options.ApiVersion = EOS_AUTH_LOGIN_API_LATEST;
+		Options.Credentials = &Credentials;
+		Options.ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_Presence;
+	
+		EOS_Auth_Login(AuthHandle, &Options, this, OnLoginAuthComplete);
+	});
 }
 
 void UAuthSubsystemEOS::OnLoginAuthComplete(const EOS_Auth_LoginCallbackInfo* Data)
 {
+	
 }
 
 void UAuthSubsystemEOS::LogoutAuth()

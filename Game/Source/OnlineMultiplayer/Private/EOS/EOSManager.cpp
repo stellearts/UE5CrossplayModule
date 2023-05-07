@@ -90,10 +90,12 @@ void FEosManager::Initialize()
 	InitializeSdk();
 	InitializePlatform();
 
-	// Initialize the SteamManager and set necessary callbacks.
+	// Get the SteamManager and set necessary callbacks.
 	SteamManager = &FSteamManager::Get();
 	SteamManager->OnSessionTicketReady.AddStatic(&FEosManager::OnSteamSessionTicketResponse);
-	RequestSteamSessionTicket();
+
+	// Start requesting the Steam Session-Ticket so that we don't have to wait for it later.
+	SteamManager->RequestSessionTicket();
 }
 
 /**
@@ -240,12 +242,36 @@ void FEosManager::FreeIntegratedPlatform(EOS_Platform_Options& PlatformOptions)
 // --------------------------------
 
 
-void FEosManager::RequestSteamSessionTicket() const
+/**
+ * Requests a session ticket from Steam.
+ *
+ * @param TicketReadyCallback The callback to call when the ticket is ready.
+ */
+void FEosManager::RequestSteamSessionTicket(const TFunction<void(std::string TicketString)> TicketReadyCallback)
 {
+	SteamSessionTicketCallback = TicketReadyCallback;
 	SteamManager->RequestSessionTicket();
 }
 
-void FEosManager::OnSteamSessionTicketResponse(TArray<uint8> Ticket)
+void FEosManager::OnSteamSessionTicketResponse(const TArray<uint8> Ticket)
 {
-	Get().OnSteamSessionTicketReady.Broadcast(Ticket);
+	if (Ticket.Num() > 0)
+	{
+		char Buffer[1024] = "";
+		uint32_t Len = 1024;
+		if (const EOS_EResult Result = EOS_ByteArray_ToString(Ticket.GetData(), Ticket.Num(), Buffer, &Len); Result != EOS_EResult::EOS_Success)
+		{
+			UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to convert encrypted app ticket to string"));
+		}
+	
+		Get().SteamSessionTicketCallback(Buffer);
+	}
+	else
+	{
+		UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to get Auth Session Ticket from Steam"));
+		Get().SteamSessionTicketCallback("");
+	}
+
+	// Clear callback
+	Get().SteamSessionTicketCallback = TFunction<void(std::string TicketString)>();
 }

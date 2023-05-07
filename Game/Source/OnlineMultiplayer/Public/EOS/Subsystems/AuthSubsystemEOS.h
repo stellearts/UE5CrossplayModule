@@ -35,11 +35,11 @@ public:
 	void LogoutConnect();
 
 private:
-	static void EOS_CALL OnLoginConnectComplete(const EOS_Connect_LoginCallbackInfo* Data);
-	void OnLogoutConnectComplete();
-
 	static void EOS_CALL OnLoginAuthComplete(const EOS_Auth_LoginCallbackInfo* Data);
 	void OnLogoutAuthComplete();
+	
+	static void EOS_CALL OnLoginConnectComplete(const EOS_Connect_LoginCallbackInfo* Data);
+	void OnLogoutConnectComplete();
 
 	class FEosManager* EosManager;
 	EOS_HAuth AuthHandle;
