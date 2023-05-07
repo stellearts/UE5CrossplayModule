@@ -10,8 +10,6 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogEOSSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogEOSSubsystem);
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnSteamSessionTicketReady, TArray<uint8>);
-
 
 
 /**
@@ -42,9 +40,12 @@ private:
 	void FreeIntegratedPlatform(EOS_Platform_Options& PlatformOptions);
 
 public:
+	void RequestSteamEncryptedAppTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback);
 	void RequestSteamSessionTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback);
 
 private:
+	static void OnSteamEncryptedAppTicketResponse(const TArray<uint8> Ticket);
+	TFunction<void(std::string TicketString)> SteamEncryptedAppTicketCallback;
 	static void OnSteamSessionTicketResponse(const TArray<uint8> Ticket);
 	TFunction<void(std::string TicketString)> SteamSessionTicketCallback;
 	

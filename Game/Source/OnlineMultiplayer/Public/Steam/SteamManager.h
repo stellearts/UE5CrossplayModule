@@ -13,7 +13,7 @@ inline DEFINE_LOG_CATEGORY(LogSteamManager);
 
 #define LOG_STEAM_NULL UE_LOG(LogSteamManager, Error, TEXT("Steam SDK is not initialized."));
 
-DECLARE_MULTICAST_DELEGATE(FOnEncryptedAppTicketReady);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnEncryptedAppTicketReady, TArray<uint8>);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionTicketReady, TArray<uint8>);
 
 
@@ -41,10 +41,17 @@ public:
 	void DeInitialize();
 	
 	// Encrypted App Ticket
-	void RequestSteamEncryptedAppTicket();
-	TArray<uint8> GetEncryptedAppTicket();
+	// void RequestSteamEncryptedAppTicket();
+	// TArray<uint8> GetEncryptedAppTicket();
+	// FOnEncryptedAppTicketReady OnEncryptedAppTicketReady;
+	// void OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* pEncryptedAppTicketResponse, bool bIOFailure);
+
+
+	// Encrypted App Ticket
+	void RequestEncryptedAppTicket();
+	void OnEncryptedAppTicketResponse( EncryptedAppTicketResponse_t *pEncryptedAppTicketResponse, bool bIOFailure );
+	CCallResult<FSteamManager, EncryptedAppTicketResponse_t> m_EncryptedAppTicketResponseCallResult;
 	FOnEncryptedAppTicketReady OnEncryptedAppTicketReady;
-    void OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* pEncryptedAppTicketResponse, bool bIOFailure);
 
 	// Auth Session Ticket
 	void RequestSessionTicket();
@@ -53,6 +60,7 @@ public:
 	
 private:
 	SteamNetworkingIdentity Identity;
+	
 	TArray<uint8> SessionTicket;
 	bool bWaitingForSessionTicket = false;
 	bool bSessionTicketReady = false;

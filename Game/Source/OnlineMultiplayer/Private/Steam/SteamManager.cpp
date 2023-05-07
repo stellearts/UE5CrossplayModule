@@ -76,21 +76,30 @@ void FSteamManager::DeInitialize()
 
 
 /**
- * Will request an encrypted app ticket from Steam.
+ * Gets the encrypted app ticket from Steam.
  *
- * Calls OnEncryptedAppTicketResponse in this class when the request is done.
+ * This should only be called after OnEncryptedAppTicketReady has been broad-casted.
  *
- * This should only be called once, at the start of the game.
+ * @returns ByteArray containing the encrypted app ticket.
  */
-void FSteamManager::RequestSteamEncryptedAppTicket() {
+void FSteamManager::RequestEncryptedAppTicket()
+{
 	if (!SteamAPI_Init())
 	{
 		LOG_STEAM_NULL
 		return;
 	}
-	UE_LOG(LogSteamManager, Log, TEXT("Requesting Encrypted App Ticket"));
-	SteamAPICall_t hSteamAPICall = SteamUser()->RequestEncryptedAppTicket(nullptr, 0);
-	m_EncryptedAppTicketResponse.Set(hSteamAPICall, this, &FSteamManager::OnEncryptedAppTicketResponse);
+
+	uint8 TicketBuffer[1024];
+	uint32 TicketSize = 0;
+	if(SteamUser()->GetEncryptedAppTicket(TicketBuffer, sizeof(TicketBuffer), &TicketSize))
+	{
+		OnEncryptedAppTicketReady.Broadcast(TArray<uint8>(TicketBuffer, TicketSize));
+		return;
+	}
+
+	const SteamAPICall_t RequestEncryptedAppTicket = SteamUser()->RequestEncryptedAppTicket(nullptr, 0);
+	m_EncryptedAppTicketResponseCallResult.Set(RequestEncryptedAppTicket, this, &FSteamManager::OnEncryptedAppTicketResponse);
 }
 
 /**
@@ -99,17 +108,29 @@ void FSteamManager::RequestSteamEncryptedAppTicket() {
  * Broadcasts OnEncryptedAppTicketReady delegate on success.
  */
 void FSteamManager::OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* pEncryptedAppTicketResponse, bool bIOFailure) {
-	UE_LOG(LogSteamManager, Warning, TEXT("OnEncryptedAppTicketResponse"));
-	if (bIOFailure) {
+	if (bIOFailure)
+	{
 		UE_LOG(LogSteamManager, Error, TEXT("There has been an IO Failure when requesting the Encrypted App Ticket."));
+		OnEncryptedAppTicketReady.Broadcast(TArray<uint8>());
+		return;
+	}
+	
+	if (pEncryptedAppTicketResponse->m_eResult == k_EResultOK)
+	{
+		uint8 TicketBuffer[1024];
+		uint32 TicketSize = 0;
+		if(SteamUser()->GetEncryptedAppTicket(TicketBuffer, sizeof(TicketBuffer), &TicketSize))
+		{
+			OnEncryptedAppTicketReady.Broadcast(TArray<uint8>(TicketBuffer, TicketSize));
+			return;
+		}
+		
+		UE_LOG(LogSteamManager, Error, TEXT("GetEncryptedAppTicket failed."));
 		return;
 	}
 
+	// Log errors.
 	switch (pEncryptedAppTicketResponse->m_eResult) {
-	case k_EResultOK:
-		UE_LOG(LogSteamManager, Warning, TEXT("Broadcasting OnEncryptedAppTicketReady"));
-		OnEncryptedAppTicketReady.Broadcast();
-		break;
 	case k_EResultNoConnection:
 		UE_LOG(LogSteamManager, Error, TEXT("Calling RequestEncryptedAppTicket while not connected to Steam results in this error."));
 		break;
@@ -123,32 +144,8 @@ void FSteamManager::OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* p
 		UE_LOG(LogSteamManager, Error, TEXT("Encrypted App Ticket response returned an unexpected result: %d"), static_cast<int32>(pEncryptedAppTicketResponse->m_eResult));
 		break;
 	}
-}
-
-/**
- * Gets the encrypted app ticket from Steam.
- *
- * This should only be called after OnEncryptedAppTicketReady has been broad-casted.
- *
- * @returns ByteArray containing the encrypted app ticket.
- */
-TArray<uint8> FSteamManager::GetEncryptedAppTicket()
-{
-	if (!SteamAPI_Init())
-	{
-		LOG_STEAM_NULL
-		return TArray<uint8>();
-	}
 	
-	uint8 TicketBuffer[1024];
-	uint32 TicketSize;
-	if (SteamUser()->GetEncryptedAppTicket(TicketBuffer, sizeof(TicketBuffer), &TicketSize))
-	{
-		return TArray<uint8>(TicketBuffer, TicketSize);
-	}
-
-	UE_LOG(LogSteamManager, Error, TEXT("Failed to get encrypted app ticket"));
-	return TArray<uint8>();
+	OnEncryptedAppTicketReady.Broadcast(TArray<uint8>());
 }
 
 
@@ -174,15 +171,15 @@ void FSteamManager::RequestSessionTicket() {
 		// If the session ticket is ready/validated, don't request a new one.
 		if(bSessionTicketReady)
 		{
-			UE_LOG(LogSteamManager, Log, TEXT("Session ticket already validated."));
+			UE_LOG(LogSteamManager, Log, TEXT("Session-Ticket already validated."));
 			OnSessionTicketReady.Broadcast(SessionTicket);
 			return;
 		}
 
-		// If we are already waiting for a session response, don't request a new one.
+		// If we are already waiting for a response, don't request a new one.
 		if(bWaitingForSessionTicket)
 		{
-			UE_LOG(LogSteamManager, Log, TEXT("Session ticket already requested. Waiting for response..."));
+			UE_LOG(LogSteamManager, Log, TEXT("Session-Ticket already requested. Waiting for response..."));
 			return;
 		}
 	}
@@ -197,8 +194,9 @@ void FSteamManager::RequestSessionTicket() {
 
 	if (AuthTicket == k_HAuthTicketInvalid)
 	{
-		UE_LOG(LogSteamManager, Error, TEXT("Failed to get Auth Session Ticket."));
+		UE_LOG(LogSteamManager, Error, TEXT("Failed to get Session-Ticket."));
 		bWaitingForSessionTicket = false;
+		OnSessionTicketReady.Broadcast(TArray<uint8>());
 		return;
 	}
 
@@ -214,7 +212,6 @@ void FSteamManager::OnSessionTicketResponse(GetAuthSessionTicketResponse_t *Resu
 {
 	if (Result->m_eResult == k_EResultOK)
 	{
-		UE_LOG(LogSteamManager, Log, TEXT("OnSessionTicketResponse: success, got ticket."));
 		bSessionTicketReady = true;
 		OnSessionTicketReady.Broadcast(SessionTicket);
 	}
