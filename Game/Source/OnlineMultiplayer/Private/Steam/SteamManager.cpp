@@ -2,9 +2,13 @@
 
 #include "Steam/SteamManager.h"
 
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#pragma warning(disable: 4265)
 #include "steam_api.h"
 #include "isteamuser.h"
 #include "steamnetworkingtypes.h"
+#pragma warning(pop)
 
 
 
@@ -46,14 +50,13 @@ FSteamManager& FSteamManager::Get()
 void FSteamManager::Initialize()
 {
 	UE_LOG(LogSteamManager, Log, TEXT("Initializing Steam-Subsystem"));
-
-	// Steam DevAppID to 480 for testing.
-	// if (SteamAPI_RestartAppIfNecessary(480))
-	// {
-	// 	// The app is being restarted to use the specified AppID; exit gracefully
-	// 	FPlatformMisc::RequestExit(false);
-	// 	return;
-	// }
+	
+	if (SteamAPI_RestartAppIfNecessary(2428930))
+	{
+		// The app is being restarted to use the specified AppID; exit gracefully
+		FPlatformMisc::RequestExit(false);
+		return;
+	}
 	
 	if (SteamAPI_Init())
 	{
@@ -76,11 +79,10 @@ void FSteamManager::DeInitialize()
 
 
 /**
- * Gets the encrypted app ticket from Steam.
+ * Requests the encrypted app ticket from Steam.
  *
- * This should only be called after OnEncryptedAppTicketReady has been broad-casted.
- *
- * @returns ByteArray containing the encrypted app ticket.
+ * Will call OnEncryptedAppTicketResponse when the request is done.
+ * Bind to OnEncryptedAppTicketReady delegate to receive the ticket in your callback.
  */
 void FSteamManager::RequestEncryptedAppTicket()
 {
@@ -90,13 +92,15 @@ void FSteamManager::RequestEncryptedAppTicket()
 		return;
 	}
 
-	uint8 TicketBuffer[1024];
-	uint32 TicketSize = 0;
-	if(SteamUser()->GetEncryptedAppTicket(TicketBuffer, sizeof(TicketBuffer), &TicketSize))
-	{
-		OnEncryptedAppTicketReady.Broadcast(TArray<uint8>(TicketBuffer, TicketSize));
-		return;
-	}
+	// TODO: Check if we already have a ticket and if it is still valid.
+
+	// uint8 TicketBuffer[1024];
+	// uint32 TicketSize = 0;
+	// if(SteamUser()->GetEncryptedAppTicket(TicketBuffer, sizeof(TicketBuffer), &TicketSize))
+	// {
+	// 	OnEncryptedAppTicketReady.Broadcast(TArray<uint8>(TicketBuffer, TicketSize));
+	// 	return;
+	// }
 
 	const SteamAPICall_t RequestEncryptedAppTicket = SteamUser()->RequestEncryptedAppTicket(nullptr, 0);
 	m_EncryptedAppTicketResponseCallResult.Set(RequestEncryptedAppTicket, this, &FSteamManager::OnEncryptedAppTicketResponse);
@@ -208,16 +212,32 @@ void FSteamManager::RequestSessionTicket() {
  *
  * Broadcasts OnSessionTicketReady delegate on success.
  */
-void FSteamManager::OnSessionTicketResponse(GetAuthSessionTicketResponse_t *Result)
+void FSteamManager::OnSessionTicketResponse(GetAuthSessionTicketResponse_t* Data)
 {
-	if (Result->m_eResult == k_EResultOK)
+	if (Data->m_eResult == k_EResultOK)
 	{
 		bSessionTicketReady = true;
 		OnSessionTicketReady.Broadcast(SessionTicket);
 	}
 	else
 	{
-		UE_LOG(LogSteamManager, Error, TEXT("OnSessionTicketResponse: failed, error code: [%d]."), Result->m_eResult);
+		UE_LOG(LogSteamManager, Error, TEXT("OnSessionTicketResponse: failed, error code: [%d]."), Data->m_eResult);
 		OnSessionTicketReady.Broadcast(TArray<uint8>());
 	}
+}
+
+
+// --------------------------------
+
+
+void FSteamManager::JoinLobbyRequest(GameLobbyJoinRequested_t* Data)
+{
+	CSteamID FriendId = Data->m_steamIDFriend;
+	
+}
+
+void FSteamManager::JoinRichPresenceRequest(GameRichPresenceJoinRequested_t* Data)
+{
+	CSteamID FriendId = Data->m_steamIDFriend;
+	
 }

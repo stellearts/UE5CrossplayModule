@@ -4,9 +4,13 @@
 
 #include "CoreMinimal.h"
 
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#pragma warning(disable: 4265)
 #include "steam_api.h"
 #include "steam_api_common.h"
 #include "isteamuser.h"
+#pragma warning(pop)
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamManager, Log, All);
 inline DEFINE_LOG_CATEGORY(LogSteamManager);
@@ -39,31 +43,31 @@ public:
 	static FSteamManager& Get();
 	void Initialize();
 	void DeInitialize();
+
 	
-	// Encrypted App Ticket
-	// void RequestSteamEncryptedAppTicket();
-	// TArray<uint8> GetEncryptedAppTicket();
-	// FOnEncryptedAppTicketReady OnEncryptedAppTicketReady;
-	// void OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* pEncryptedAppTicketResponse, bool bIOFailure);
-
-
-	// Encrypted App Ticket
+	// Tickets
 	void RequestEncryptedAppTicket();
-	void OnEncryptedAppTicketResponse( EncryptedAppTicketResponse_t *pEncryptedAppTicketResponse, bool bIOFailure );
-	CCallResult<FSteamManager, EncryptedAppTicketResponse_t> m_EncryptedAppTicketResponseCallResult;
 	FOnEncryptedAppTicketReady OnEncryptedAppTicketReady;
-
-	// Auth Session Ticket
 	void RequestSessionTicket();
-	STEAM_CALLBACK(FSteamManager, OnSessionTicketResponse, GetAuthSessionTicketResponse_t);
 	FOnSessionTicketReady OnSessionTicketReady;
 	
 private:
-	SteamNetworkingIdentity Identity;
-	
+	// Ticket callbacks
+	void OnEncryptedAppTicketResponse( EncryptedAppTicketResponse_t *pEncryptedAppTicketResponse, bool bIOFailure );
+	CCallResult<FSteamManager, EncryptedAppTicketResponse_t> m_EncryptedAppTicketResponseCallResult;
+	STEAM_CALLBACK(FSteamManager, OnSessionTicketResponse, GetAuthSessionTicketResponse_t);
+
+	// Session ticket data
 	TArray<uint8> SessionTicket;
 	bool bWaitingForSessionTicket = false;
 	bool bSessionTicketReady = false;
 	
-	CCallResult<FSteamManager, EncryptedAppTicketResponse_t> m_EncryptedAppTicketResponse;
+	// Game callbacks
+	STEAM_CALLBACK(FSteamManager, JoinLobbyRequest, GameLobbyJoinRequested_t);
+	STEAM_CALLBACK(FSteamManager, JoinRichPresenceRequest, GameRichPresenceJoinRequested_t);
+	
+	SteamNetworkingIdentity Identity;
+
+public:
+	FORCEINLINE CSteamID GetSteamID() const { return SteamUser()->GetSteamID(); }
 };

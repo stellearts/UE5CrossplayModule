@@ -13,8 +13,26 @@ inline DEFINE_LOG_CATEGORY(LogEOSSubsystem);
 
 
 /**
+ * Struct that holds information about a local user.
+ *
+ * Used to keep track of the local user's state.
+ */
+struct FLocalUser
+{
+	bool bConnectLoggedIn = false;
+	bool bAuthLoggedIn = false;
+	EOS_EpicAccountId EpicAccountID;
+	EOS_ProductUserId ProductUserId;
+	EOS_ContinuanceToken ContinuanceToken;
+};
+
+
+/**
  * Singleton class for the EOS-SDK.
- * Responsible for initializing the SDK and providing helper functions for other classes.
+ * 
+ * Responsible for initializing the SDK and providing helper functions and variables for other classes.
+ * 
+ * Should be used by the subsystems than handle online related functionality.
  */
 class ONLINEMULTIPLAYER_API FEosManager final : public FTickableGameObject
 {
@@ -52,7 +70,10 @@ private:
 	FSteamManager* SteamManager;
 	EOS_HPlatform PlatformHandle;
 	bool bIsInitialized = false;
+	FLocalUser LocalUser;
 
 public:
 	FORCEINLINE EOS_HPlatform GetPlatformHandle() const { return PlatformHandle; }
+	FORCEINLINE FLocalUser& GetLocalUser() { return LocalUser; }
+	FORCEINLINE CSteamID GetSteamID() const { return SteamManager->GetSteamID(); }
 };

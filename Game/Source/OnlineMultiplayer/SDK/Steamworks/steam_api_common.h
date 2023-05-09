@@ -174,7 +174,7 @@ public:
 	typedef void (T::*func_t)( P*, bool );
 
 	CCallResult();
-	~CCallResult();
+	virtual ~CCallResult();
 	
 	void Set( SteamAPICall_t hAPICall, T *p, func_t func );
 	bool IsActive() const;

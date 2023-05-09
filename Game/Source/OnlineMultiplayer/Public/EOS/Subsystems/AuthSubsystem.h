@@ -4,19 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "AuthSubsystemEOS.generated.h"
+#include "AuthSubsystem.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogAuthSubsystemEOS, Log, All);
-inline DEFINE_LOG_CATEGORY(LogAuthSubsystemEOS);
+DECLARE_LOG_CATEGORY_EXTERN(LogAuthSubsystem, Log, All);
+inline DEFINE_LOG_CATEGORY(LogAuthSubsystem);
 
 
 
 /**
- * Authorization subsystem for EOS.
- * For both Auth and Connect interfaces.
+ * Subsystem for authorizing users for both Auth and Connect interfaces.
+ *
+ * Connect is used for multiplayer and matchmaking.
+ *
+ * Auth is used for user accounts and friends.
  */
 UCLASS(BlueprintType)
-class ONLINEMULTIPLAYER_API UAuthSubsystemEOS : public UGameInstanceSubsystem
+class ONLINEMULTIPLAYER_API UAuthSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 	
@@ -37,9 +40,12 @@ public:
 private:
 	static void EOS_CALL OnLoginAuthComplete(const EOS_Auth_LoginCallbackInfo* Data);
 	void OnLogoutAuthComplete();
-	
 	static void EOS_CALL OnLoginConnectComplete(const EOS_Connect_LoginCallbackInfo* Data);
 	void OnLogoutConnectComplete();
+	
+	void LinkUserAuth();
+	void CreateNewUserConnect();
+	void CheckAccounts();
 
 	class FEosManager* EosManager;
 	EOS_HAuth AuthHandle;
