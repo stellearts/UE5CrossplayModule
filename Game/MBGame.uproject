@@ -6,7 +6,7 @@
 	"Modules": [
 		{
 			"Name": "OnlineMultiplayer",
-			"Type": "RuntimeNoCommandlet",
+			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit"
 		},
 		{

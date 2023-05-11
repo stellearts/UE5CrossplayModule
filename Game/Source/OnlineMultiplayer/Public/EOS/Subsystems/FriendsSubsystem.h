@@ -27,5 +27,6 @@ public:
 
 private:
 	class FEosManager* EosManager;
+	TSharedPtr<class FLocalUserState> LocalUserState;
 	EOS_HFriends FriendsHandle;
 };

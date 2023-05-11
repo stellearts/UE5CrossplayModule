@@ -12,6 +12,8 @@ void UFriendsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	EosManager = &FEosManager::Get();
+	LocalUserState = EosManager->GetLocalUserState();
+	
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle)
 	{

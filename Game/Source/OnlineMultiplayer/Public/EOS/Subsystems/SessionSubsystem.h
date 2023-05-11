@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-
 #include "SessionSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSessionSubsystem, Log, All);
@@ -31,5 +30,6 @@ private:
 	static void OnCreateSessionComplete(const EOS_Sessions_UpdateSessionCallbackInfo* Data);
 	
 	class FEosManager* EosManager;
+	TSharedPtr<class FLocalUserState> LocalUserState;
 	EOS_HSessions SessionsHandle;
 };

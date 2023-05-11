@@ -12,13 +12,10 @@ void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	EosManager = &FEosManager::Get();
-	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
-	if(!PlatformHandle)
-	{
-		UE_LOG(LogSessionSubsystem, Error, TEXT("Platform-Handle is null"));
-		return;
-	}
+	LocalUserState = EosManager->GetLocalUserState();
 	
+	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
+	if(!PlatformHandle) return;
 	SessionsHandle = EOS_Platform_GetSessionsInterface(PlatformHandle);
 }
 
@@ -33,7 +30,7 @@ void USessionSubsystem::CreateSession()
 	CreateSessionOptions.SessionName = "MySession";
 	CreateSessionOptions.BucketId = "GameMode:Region:MapName";
 	CreateSessionOptions.MaxPlayers = 8;
-	CreateSessionOptions.LocalUserId = EosManager->GetLocalUser().ProductUserId;
+	CreateSessionOptions.LocalUserId = LocalUserState->GetProductUserId();
 	CreateSessionOptions.bPresenceEnabled = true;
 	CreateSessionOptions.bSanctionsEnabled = false;
 	

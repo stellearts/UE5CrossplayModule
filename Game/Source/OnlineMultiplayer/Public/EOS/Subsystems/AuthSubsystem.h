@@ -48,6 +48,7 @@ private:
 	void CheckAccounts();
 
 	class FEosManager* EosManager;
+	TSharedPtr<class FLocalUserState> LocalUserState;
 	EOS_HAuth AuthHandle;
 	EOS_HConnect ConnectHandle;
 	EOS_ProductUserId EosProductUserId;

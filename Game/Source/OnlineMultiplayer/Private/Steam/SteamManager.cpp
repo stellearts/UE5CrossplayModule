@@ -20,6 +20,7 @@ void SteamAPIDebugMessageHook(int nSeverity, const char *pchDebugText)
 
 FSteamManager::FSteamManager()
 {
+	
 }
 
 void FSteamManager::Tick(float DeltaTime)
@@ -228,16 +229,3 @@ void FSteamManager::OnSessionTicketResponse(GetAuthSessionTicketResponse_t* Data
 
 
 // --------------------------------
-
-
-void FSteamManager::JoinLobbyRequest(GameLobbyJoinRequested_t* Data)
-{
-	CSteamID FriendId = Data->m_steamIDFriend;
-	
-}
-
-void FSteamManager::JoinRichPresenceRequest(GameRichPresenceJoinRequested_t* Data)
-{
-	CSteamID FriendId = Data->m_steamIDFriend;
-	
-}

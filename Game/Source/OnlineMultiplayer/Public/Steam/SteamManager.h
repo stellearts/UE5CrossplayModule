@@ -62,12 +62,9 @@ private:
 	bool bWaitingForSessionTicket = false;
 	bool bSessionTicketReady = false;
 	
-	// Game callbacks
-	STEAM_CALLBACK(FSteamManager, JoinLobbyRequest, GameLobbyJoinRequested_t);
-	STEAM_CALLBACK(FSteamManager, JoinRichPresenceRequest, GameRichPresenceJoinRequested_t);
-	
 	SteamNetworkingIdentity Identity;
 
 public:
+	FORCEINLINE void SetRichPresence(const char *Key, const char *Value) { SteamFriends()->SetRichPresence(Key, Value); }
 	FORCEINLINE CSteamID GetSteamID() const { return SteamUser()->GetSteamID(); }
 };

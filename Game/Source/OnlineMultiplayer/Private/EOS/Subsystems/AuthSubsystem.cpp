@@ -6,11 +6,14 @@
 #include "eos_auth.h"
 
 
+
 void UAuthSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
 	EosManager = &FEosManager::Get();
+	LocalUserState = EosManager->GetLocalUserState();
+	
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle)
 	{
@@ -52,25 +55,21 @@ void UAuthSubsystem::OnLoginAuthComplete(const EOS_Auth_LoginCallbackInfo* Data)
 {
 	UAuthSubsystem* AuthSubsystem = static_cast<UAuthSubsystem*>(Data->ClientData);
 	if(!AuthSubsystem) return;
-
-	FLocalUser& LocalUser = AuthSubsystem->EosManager->GetLocalUser();
+	
 	if(Data->ResultCode == EOS_EResult::EOS_Success)
 	{
 		// Login was successful. We can now use the Auth interface.
-		LocalUser.EpicAccountID = Data->LocalUserId;
-		LocalUser.bAuthLoggedIn = true;
+		AuthSubsystem->LocalUserState->SetEpicAccountId(Data->LocalUserId);
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_Auth_ExternalAuthNotLinked ||
 			Data->ResultCode == EOS_EResult::EOS_InvalidUser)
 	{
 		// Open the login overlay. The user can now login with their Epic account, or create a new one.
-		LocalUser.ContinuanceToken = Data->ContinuanceToken;
-		LocalUser.bAuthLoggedIn = false;
+		AuthSubsystem->LocalUserState->SetContinuanceToken(Data->ContinuanceToken);
 		AuthSubsystem->LinkUserAuth();
 	}
 	else
 	{
-		LocalUser.bAuthLoggedIn = false;
 		UE_LOG(LogAuthSubsystem, Error, TEXT("LoginAuth failed with error code %d"), Data->ResultCode);
 	}
 }
@@ -116,23 +115,19 @@ void UAuthSubsystem::OnLoginConnectComplete(const EOS_Connect_LoginCallbackInfo*
 {
 	UAuthSubsystem* AuthSubsystem = static_cast<UAuthSubsystem*>(Data->ClientData);
 	if(!AuthSubsystem) return;
-
-	FLocalUser& LocalUser = AuthSubsystem->EosManager->GetLocalUser();
+	
 	if (Data->ResultCode == EOS_EResult::EOS_Success)
 	{
-		LocalUser.ProductUserId = Data->LocalUserId;
-		LocalUser.bConnectLoggedIn = true;
+		AuthSubsystem->LocalUserState->SetProductUserId(Data->LocalUserId);
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_InvalidUser)
 	{
 		// Create a new account. But maybe check if the user wants to do this.
-		LocalUser.ContinuanceToken = Data->ContinuanceToken;
-		LocalUser.bConnectLoggedIn = false;
+		AuthSubsystem->LocalUserState->SetContinuanceToken(Data->ContinuanceToken);
 		AuthSubsystem->CreateNewUserConnect();
 	}
 	else
 	{
-		LocalUser.bConnectLoggedIn = false;
 		UE_LOG(LogAuthSubsystem, Error, TEXT("LoginConnect failed with error code %d"), Data->ResultCode);
 	}
 }
@@ -151,7 +146,7 @@ void UAuthSubsystem::LinkUserAuth()
 	Options.ApiVersion = EOS_AUTH_LINKACCOUNT_API_LATEST;
 	Options.LinkAccountFlags = EOS_ELinkAccountFlags::EOS_LA_NoFlags;
 	Options.LocalUserId = nullptr;
-	Options.ContinuanceToken = EosManager->GetLocalUser().ContinuanceToken;
+	Options.ContinuanceToken = LocalUserState->GetContinuanceToken();
 	
 	EOS_Auth_LinkAccount(AuthHandle, &Options, this, [](const EOS_Auth_LinkAccountCallbackInfo* Data)
 	{
@@ -183,7 +178,7 @@ void UAuthSubsystem::CreateNewUserConnect()
 {
 	EOS_Connect_CreateUserOptions CreateUserOptions;
 	CreateUserOptions.ApiVersion = EOS_CONNECT_CREATEUSER_API_LATEST;
-	CreateUserOptions.ContinuanceToken = EosManager->GetLocalUser().ContinuanceToken;
+	CreateUserOptions.ContinuanceToken = LocalUserState->GetContinuanceToken();
 	EOS_Connect_CreateUser(ConnectHandle, &CreateUserOptions, this, [](const EOS_Connect_CreateUserCallbackInfo* Data)
 	{
 		UAuthSubsystem* AuthSubsystem = static_cast<UAuthSubsystem*>(Data->ClientData);
@@ -205,7 +200,7 @@ void UAuthSubsystem::CheckAccounts()
 {
 	EOS_Connect_QueryProductUserIdMappingsOptions QueryMappingsOptions = {};
 	QueryMappingsOptions.ApiVersion = EOS_CONNECT_QUERYPRODUCTUSERIDMAPPINGS_API_LATEST;
-	QueryMappingsOptions.LocalUserId = EosManager->GetLocalUser().ProductUserId;
+	QueryMappingsOptions.LocalUserId = LocalUserState->GetProductUserId();
 	EOS_ProductUserId ProductUserIds[] = {QueryMappingsOptions.LocalUserId};
 	QueryMappingsOptions.ProductUserIds = ProductUserIds;
 	QueryMappingsOptions.ProductUserIdCount = 1;

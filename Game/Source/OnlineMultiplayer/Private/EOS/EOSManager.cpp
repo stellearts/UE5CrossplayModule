@@ -50,6 +50,11 @@ static void EOS_CALL OnEosLogMessage(const EOS_LogMessage* Message)
 	}
 }
 
+FEosManager::~FEosManager()
+{
+	
+}
+
 void FEosManager::Tick(float DeltaTime)
 {
 	if (PlatformHandle) EOS_Platform_Tick(PlatformHandle); // If-statement maybe redundant because of IsTickable().
@@ -90,10 +95,15 @@ void FEosManager::Initialize()
 	InitializeSdk();
 	InitializePlatform();
 
+
+	// TODO: Steam should not run at all if playing on different platform, find a way to disable it and run this conditionally.
 	// Get the SteamManager and set necessary callbacks.
 	SteamManager = &FSteamManager::Get();
 	SteamManager->OnSessionTicketReady.AddStatic(&FEosManager::OnSteamSessionTicketResponse);
 	SteamManager->OnEncryptedAppTicketReady.AddStatic(&FEosManager::OnSteamEncryptedAppTicketResponse);
+
+	LocalUserState = MakeShared<FLocalUserState>();
+	LocalUserState->SetPlatformType(EPlatformType::PlatformType_Steam);
 
 	// Start requesting the Steam Session-Ticket so that we don't have to wait for it later.
 	// SteamManager->RequestSessionTicket();
