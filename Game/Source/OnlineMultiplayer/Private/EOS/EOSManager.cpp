@@ -102,9 +102,6 @@ void FEosManager::Initialize()
 	SteamManager->OnSessionTicketReady.AddStatic(&FEosManager::OnSteamSessionTicketResponse);
 	SteamManager->OnEncryptedAppTicketReady.AddStatic(&FEosManager::OnSteamEncryptedAppTicketResponse);
 
-	LocalUserState = MakeShared<FLocalUserState>();
-	LocalUserState->SetPlatformType(EPlatformType::PlatformType_Steam);
-
 	// Start requesting the Steam Session-Ticket so that we don't have to wait for it later.
 	// SteamManager->RequestSessionTicket();
 }

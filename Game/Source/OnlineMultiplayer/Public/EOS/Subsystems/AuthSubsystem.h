@@ -42,15 +42,23 @@ private:
 	void OnLogoutAuthComplete();
 	static void EOS_CALL OnLoginConnectComplete(const EOS_Connect_LoginCallbackInfo* Data);
 	void OnLogoutConnectComplete();
+
+public:
+	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs);
+
+private:
+	static void OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);
 	
 	void LinkUserAuth();
 	void CreateNewUserConnect();
 	void CheckAccounts();
 
 	class FEosManager* EosManager;
-	TSharedPtr<class FLocalUserState> LocalUserState;
 	EOS_HAuth AuthHandle;
 	EOS_HConnect ConnectHandle;
 	EOS_ProductUserId EosProductUserId;
 	EOS_ContinuanceToken EosContinuanceToken;
+
+	UPROPERTY()
+	class ULocalUserStateSubsystem* LocalUserState;
 };

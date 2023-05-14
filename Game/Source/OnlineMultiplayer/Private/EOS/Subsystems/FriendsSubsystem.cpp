@@ -4,23 +4,19 @@
 
 #include "EOS/EOSManager.h"
 #include "eos_friends.h"
-
+#include "EOS/Subsystems/LocalUserStateSubsystem.h"
 
 
 void UFriendsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
+	// Make sure the local user state subsystem is initialized.
+	LocalUserState = Collection.InitializeDependency<ULocalUserStateSubsystem>();
+
 	EosManager = &FEosManager::Get();
-	LocalUserState = EosManager->GetLocalUserState();
-	
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
-	if(!PlatformHandle)
-	{
-		UE_LOG(LogFriendsSubsystem, Error, TEXT("Platform-Handle is null"));
-		return;
-	}
-	
+	if(!PlatformHandle) return;
 	FriendsHandle = EOS_Platform_GetFriendsInterface(PlatformHandle);
 }
 

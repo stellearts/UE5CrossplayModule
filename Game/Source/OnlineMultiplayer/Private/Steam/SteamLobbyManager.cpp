@@ -10,36 +10,71 @@
 #include "steamnetworkingtypes.h"
 #pragma warning(pop)
 
+#include "EOS/Subsystems/LobbySubsystem.h"
+#include "EOS/Subsystems/LocalUserStateSubsystem.h"
 
+
+FSteamLobbyManager::FSteamLobbyManager(UGameInstance* InGameInstance)
+{
+	GameInstance = InGameInstance;
+}
 
 /**
- * Creates a Steam lobby with the EOS lobby ID as lobby data.
+ * Creates a Steam lobby and set the EOS lobby ID as lobby data.
  *
- * Steam users can then also join the EOS lobby by joining this shadow lobby.
+ * Steam users can then join the EOS lobby by joining this shadow lobby.
  *
- * This will also allow the lobby-presence to show up in the Steam overlay and allow users to join the lobby through the overlay.
+ * Purpose is to allow Steam users to join the EOS lobby through the Steam overlay, and also update lobby presence in the overlay.
+ *
+ * This function should be called by the first Steam user that joins the EOS lobby, and he will be the owner of this Steam lobby.
  */
-void FSteamLobbyManager::CreateShadowLobby(const char* EosLobbyID)
+void FSteamLobbyManager::CreateShadowLobby()
 {
+	if(!GameInstance) return;
+	const ULocalUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<ULocalUserStateSubsystem>();
+	if(!LocalUserState) return;
+
+	if(!LocalUserState->IsInLobby())
+	{
+		UE_LOG(LogSteamLobbyManager, Warning, TEXT("Not in an EOS-Lobby. Cannot create Shadow-Lobby without being in an EOS-Lobby."));
+		return;
+	}
+	
 	const SteamAPICall_t SteamCreateShadowLobbyAPICall = SteamMatchmaking()->CreateLobby(k_ELobbyTypeFriendsOnly, 4);
-
-	// Set the lobby data to include the EOS lobby ID.
-	SteamMatchmaking()->SetLobbyData(SteamCreateShadowLobbyAPICall, "EOSLobbyID", EosLobbyID);
-
-	// Set the call result to trigger OnShadowLobbyCreated when the lobby is created.
 	OnCreateShadowLobbyCallResult.Set(SteamCreateShadowLobbyAPICall, this, &FSteamLobbyManager::OnCreateShadowLobbyComplete);
 }
 
 void FSteamLobbyManager::OnCreateShadowLobbyComplete(LobbyCreated_t* Data, bool bIOFailure)
 {
+	ULocalUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<ULocalUserStateSubsystem>();
+	if(!LocalUserState) return;
+	LocalUserState->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to create lobby.
+	
 	if(Data->m_eResult == k_EResultOK)
 	{
-		UE_LOG(LogSteamLobbyManager, Log, TEXT("Lobby created!"));
+		UE_LOG(LogSteamLobbyManager, Log, TEXT("Shadow-Lobby created!"));
+		
+		// Set the lobby data to include the EOS lobby ID. This will allow Steam users to join the EOS lobby through the shadow lobby.
+		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", LocalUserState->GetLobbyID());
+	}
+	else
+	{
+		UE_LOG(LogSteamLobbyManager, Log, TEXT("Failed to create Shadow-Lobby with Result Code: %d"), Data->m_eResult);
+		OnCreateShadowLobbyCompleteDelegate.Broadcast(0);
+	}
+}
+
+// TODO: can be removed probably.
+void FSteamLobbyManager::OnLobbyDataUpdateComplete(LobbyDataUpdate_t* Data)
+{
+	// TODO: Add some checks to make sure the user wanted to create a lobby and listens for the result.
+	if(Data->m_bSuccess)
+	{
 		OnCreateShadowLobbyCompleteDelegate.Broadcast(Data->m_ulSteamIDLobby);
 	}
 	else
 	{
-		UE_LOG(LogSteamLobbyManager, Log, TEXT("Failed to create lobby!"));
+		// Should only be false if RequestLobbyData() was called on a lobby that no longer exists, according to the Steam api.
 		OnCreateShadowLobbyCompleteDelegate.Broadcast(0);
 	}
 }
@@ -48,22 +83,38 @@ void FSteamLobbyManager::OnCreateShadowLobbyComplete(LobbyCreated_t* Data, bool 
 // --------------------------------------------
 
 
-void FSteamLobbyManager::OnShadowLobbyEntered(LobbyEnter_t* Data, bool bIOFailure)
+void FSteamLobbyManager::JoinShadowLobby(uint64 SteamLobbyID)
 {
+	const SteamAPICall_t SteamJoinShadowLobbyAPICall = SteamMatchmaking()->JoinLobby(SteamLobbyID);
+	OnShadowLobbyEnterCallResult.Set(SteamJoinShadowLobbyAPICall, this, &FSteamLobbyManager::OnJoinShadowLobbyComplete);
+}
+
+void FSteamLobbyManager::OnJoinShadowLobbyComplete(LobbyEnter_t* Data, bool bIOFailure)
+{
+	if(!GameInstance) return;
+	ULocalUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<ULocalUserStateSubsystem>();
+	ULobbySubsystem* LobbySubsystem = GameInstance->GetSubsystem<ULobbySubsystem>();
+	if(!LocalUserState || !LobbySubsystem) return;
+	LocalUserState->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to join.
+	
 	if(Data->m_EChatRoomEnterResponse == k_EChatRoomEnterResponseSuccess)
 	{
-		UE_LOG(LogSteamLobbyManager, Log, TEXT("Shadow lobby joined!"));
+		UE_LOG(LogSteamLobbyManager, Log, TEXT("Shadow-Lobby joined!"));
 
-		// Get the EOS lobby ID from the lobby data
-		const char* EOSLobbyID = SteamMatchmaking()->GetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID");
-
-		// Redirect the user to the EOS lobby using the lobby ID.
+		// Join the EOS lobby if the user is not already in the EOS lobby.
+		if(!LocalUserState->IsInLobby())
+		{
+			const char* EosLobbyID = SteamMatchmaking()->GetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID");
+			LobbySubsystem->JoinLobbyByID(EosLobbyID);
+		}
 	}
 	else
-	{
-		UE_LOG(LogSteamLobbyManager, Log, TEXT("Failed to join shadow lobby!"));
-	}
+		UE_LOG(LogSteamLobbyManager, Log, TEXT("Failed to join Shadow-Lobby!"));
 }
+
+
+// --------------------------------------------
+
 
 void FSteamLobbyManager::OnJoinShadowLobbyRequest(GameLobbyJoinRequested_t* Data)
 {

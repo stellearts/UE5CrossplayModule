@@ -10,7 +10,14 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogLobbySubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogLobbySubsystem);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnUserJoinLobby, const FString&, UserId);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCreateLobbyCompleteDelegate, const bool, bSuccess);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJoinLobbyCompleteDelegate, const bool, bSuccess);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserJoinedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserLeftDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserDisconnectedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserKickedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserPromotedDelegate);
 
 
 
@@ -30,27 +37,67 @@ protected:
 public:
 	UFUNCTION(BlueprintCallable, Category = "Online|Lobby")
 	void CreateLobby();
+	void JoinLobbyByID(const EOS_LobbyId LobbyID);
+	void JoinLobbyByUserID(const EOS_ProductUserId UserID);
 
 private:
-	void JoinLobby(const EOS_HLobbyDetails LobbyDetailsHandle);
+	void JoinLobbyByHandle(const EOS_HLobbyDetails LobbyDetailsHandle);
 	
 	static void OnCreateLobbyComplete(const EOS_Lobby_CreateLobbyCallbackInfo* Data);
 	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
-	static void OnLobbySearchComplete(const EOS_LobbySearch_FindCallbackInfo* Data);
-	static void OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
-
-	void OnCreateShadowLobbyComplete(const uint64 ShadowLobbyId);
-	FDelegateHandle CreateShadowLobbyCompleteDelegateHandle;
-
 	
-	void ApplySteamInviterAttributeModification(const EOS_LobbyId LobbyId);
+	static void OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
+	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
 	
 	class FEosManager* EosManager;
-	TSharedPtr<class FLocalUserState> LocalUserState;
 	EOS_HLobby LobbyHandle;
-	EOS_HLobbySearch LobbySearchHandle;
+	EOS_HLobbySearch LobbySearchByLobbyIDHandle;
+	EOS_HLobbySearch LobbySearchByUserIDHandle;
+	EOS_NotificationId OnLobbyMemberStatusUpdateID;
 
+	UPROPERTY()
+	class ULocalUserStateSubsystem* LocalUserState;
+
+public:
+	// Delegates for other classes to bind to.
+	
+	// Create/Join Lobby delegates.
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	FOnCreateLobbyCompleteDelegate OnCreateLobbyCompleteDelegate;
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	FOnJoinLobbyCompleteDelegate OnJoinLobbyCompleteDelegate;
+	
+	// Lobby-User update delegates.
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	FOnLobbyUserJoinedDelegate OnLobbyUserJoinedDelegate;
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	FOnLobbyUserLeftDelegate OnLobbyUserLeftDelegate;
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	FOnLobbyUserDisconnectedDelegate OnLobbyUserDisconnectedDelegate;
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	FOnLobbyUserKickedDelegate OnLobbyUserKickedDelegate;
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
+
+	
+	
+	/**
+	 * Shadow-Lobby.
+	 */
+	
+	void CreateShadowLobby();
+	void OnCreateShadowLobbyComplete(const uint64 ShadowLobbyID);
+	
+	void JoinShadowLobby(const uint64 ShadowLobbyID);
+	void OnJoinShadowLobbyComplete(const uint64 ShadowLobbyID);
+
+	void AddShadowLobbyIdAttribute(const uint64 ShadowLobbyID);
+	static void OnAddShadowLobbyIdAttributeComplete(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
+
+private:
+	// Shadow Lobby delegate-handles for unbinding upon completion.
+	FDelegateHandle OnCreateShadowLobbyCompleteDelegateHandle;
+	FDelegateHandle OnJoinShadowLobbyCompleteDelegateHandle;
+	
 	TUniquePtr<FSteamLobbyManager> SteamLobbyManager;
-	bool bInLobby = false;
-	bool bInShadowLobby = false;
 };

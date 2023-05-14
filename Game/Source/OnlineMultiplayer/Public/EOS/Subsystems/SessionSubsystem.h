@@ -30,6 +30,8 @@ private:
 	static void OnCreateSessionComplete(const EOS_Sessions_UpdateSessionCallbackInfo* Data);
 	
 	class FEosManager* EosManager;
-	TSharedPtr<class FLocalUserState> LocalUserState;
 	EOS_HSessions SessionsHandle;
+
+	UPROPERTY()
+	class ULocalUserStateSubsystem* LocalUserState;
 };

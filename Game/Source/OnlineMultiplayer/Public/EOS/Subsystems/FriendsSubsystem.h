@@ -27,6 +27,8 @@ public:
 
 private:
 	class FEosManager* EosManager;
-	TSharedPtr<class FLocalUserState> LocalUserState;
 	EOS_HFriends FriendsHandle;
+	
+	UPROPERTY()
+	class ULocalUserStateSubsystem* LocalUserState;
 };
