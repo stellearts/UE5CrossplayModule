@@ -1,10 +1,8 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "EOS/Subsystems/FriendsSubsystem.h"
-
-#include "EOS/EOSManager.h"
-#include "eos_friends.h"
-#include "EOS/Subsystems/LocalUserStateSubsystem.h"
+#include "Platforms/EOS/Subsystems/FriendsSubsystem.h"
+#include "Platforms/EOS/EOSManager.h"
+#include "UserStateSubsystem.h"
 
 
 void UFriendsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -12,7 +10,7 @@ void UFriendsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	// Make sure the local user state subsystem is initialized.
-	LocalUserState = Collection.InitializeDependency<ULocalUserStateSubsystem>();
+	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
@@ -24,7 +22,7 @@ void UFriendsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 // --------------------------------------------
 
 
-void UFriendsSubsystem::InviteFriend()
+void UFriendsSubsystem::InviteFriendToLobby()
 {
 	// TODO:
 	// Send an invite using EOS_Lobby_SendInvite using their product user id.

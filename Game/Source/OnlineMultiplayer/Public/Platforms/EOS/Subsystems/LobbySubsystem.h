@@ -4,7 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "Steam/SteamLobbyManager.h"
+#include "OnlineMultiplayer_CommonTypes.h"
+#include "Platforms/Steam/SteamLobbyManager.h"
 #include "LobbySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLobbySubsystem, Log, All);
@@ -13,7 +14,7 @@ inline DEFINE_LOG_CATEGORY(LogLobbySubsystem);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCreateLobbyCompleteDelegate, const bool, bSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJoinLobbyCompleteDelegate, const bool, bSuccess);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserJoinedDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const FOnlineUser, OnlineUser);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserLeftDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserDisconnectedDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserKickedDelegate);
@@ -48,6 +49,12 @@ private:
 	
 	static void OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
 	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
+
+	void OnLobbyUserJoined(const EOS_ProductUserId TargetUserID);
+	void OnLobbyUserLeft(const EOS_ProductUserId TargetUserID);
+	void OnLobbyUserDisconnected(const EOS_ProductUserId TargetUserID);
+	void OnLobbyUserKicked(const EOS_ProductUserId TargetUserID);
+	void OnLobbyUserPromoted(const EOS_ProductUserId TargetUserID);
 	
 	class FEosManager* EosManager;
 	EOS_HLobby LobbyHandle;
@@ -56,7 +63,10 @@ private:
 	EOS_NotificationId OnLobbyMemberStatusUpdateID;
 
 	UPROPERTY()
-	class ULocalUserStateSubsystem* LocalUserState;
+	class UUserStateSubsystem* LocalUserState;
+
+	// Determines whether the user is still in the lobby after loading their data.
+	TArray<EOS_ProductUserId> UsersToLoad;
 
 public:
 	// Delegates for other classes to bind to.
@@ -80,10 +90,11 @@ public:
 	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
 
 	
+
+
 	
-	/**
-	 * Shadow-Lobby.
-	 */
+	// ------------------------------- Shadow Lobby -------------------------------
+	 
 	
 	void CreateShadowLobby();
 	void OnCreateShadowLobbyComplete(const uint64 ShadowLobbyID);

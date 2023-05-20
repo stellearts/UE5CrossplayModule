@@ -33,5 +33,5 @@ private:
 	EOS_HSessions SessionsHandle;
 
 	UPROPERTY()
-	class ULocalUserStateSubsystem* LocalUserState;
+	class UUserStateSubsystem* LocalUserState;
 };

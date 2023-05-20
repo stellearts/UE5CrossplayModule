@@ -1,10 +1,11 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "Steam/SteamManager.h"
-
+#include "Platforms/Steam/SteamManager.h"
 #pragma warning(push)
 #pragma warning(disable: 4996)
 #pragma warning(disable: 4265)
+#include <string>
+
 #include "steam_api.h"
 #include "isteamuser.h"
 #include "steamnetworkingtypes.h"
@@ -229,3 +230,47 @@ void FSteamManager::OnSessionTicketResponse(GetAuthSessionTicketResponse_t* Data
 
 
 // --------------------------------
+
+
+void FSteamManager::GetUserAvatar(const std::string UserIDString)
+{
+	const CSteamID UserID(std::stoull(UserIDString));
+
+	// Return if the image is already being requested. Callback will be called when the image is ready.
+	if (SteamFriends()->RequestUserInformation(UserID, false)) return;
+
+	// Image is ready.
+	ProcessAvatar(UserID);
+}
+
+void FSteamManager::ProcessAvatar(const CSteamID& UserID)
+{
+	// Listen to the callback when the image is not yet ready
+	if (const int ImageData = SteamFriends()->GetSmallFriendAvatar(UserID); ImageData != -1) 
+	{
+		uint32 ImageWidth, ImageHeight;
+		if (SteamUtils()->GetImageSize(ImageData, &ImageWidth, &ImageHeight)) 
+		{
+			// Create buffer large enough to hold the image data
+			std::vector<uint8> Buffer(ImageWidth * ImageHeight * 4); // 4 bytes per pixel for RGBA
+
+			// Get the actual image data
+			if (SteamUtils()->GetImageRGBA(ImageData, Buffer.data(), Buffer.size())) 
+			{
+				// Avatar image data is now in the buffer
+				// You can use this data to create a texture, save it to a file, etc.
+			}
+		}
+	}
+}
+
+void FSteamManager::OnPersonaStateChange(PersonaStateChange_t* Data)
+{
+	const CSteamID UserID(Data->m_ulSteamID);
+
+	// If avatar data changed, try to process the avatar again
+	if (Data->m_nChangeFlags & k_EPersonaChangeAvatar)
+	{
+		ProcessAvatar(UserID);
+	}
+}

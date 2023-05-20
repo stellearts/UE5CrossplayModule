@@ -1,12 +1,11 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "EOS/Subsystems/LobbySubsystem.h"
-
-#include "EOS/EOSManager.h"
+#include "Platforms/EOS/Subsystems/LobbySubsystem.h"
+#include "Platforms/EOS/EOSManager.h"
 #include "eos_lobby.h"
-#include "EOS/Subsystems/LocalUserStateSubsystem.h"
-#include "Steam/SteamLobbyManager.h"
-
+#include "Platforms/Steam/SteamLobbyManager.h"
+#include "UserStateSubsystem.h"
+#include "Platforms/EOS/Subsystems/AuthSubsystem.h"
 
 
 void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -14,7 +13,7 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	// Make sure the local user state subsystem is initialized. Store it as member since we will need to use it often.
-	LocalUserState = Collection.InitializeDependency<ULocalUserStateSubsystem>();
+	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
 	
 	// TODO: Add compatibility for other platforms. Currently only steam.
 	// TODO: Maybe use preprocessor directives for platform specific code.
@@ -69,7 +68,7 @@ void ULobbySubsystem::OnCreateLobbyComplete(const EOS_Lobby_CreateLobbyCallbackI
 {
 	ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
 	if(!LobbySubsystem) return;
-	ULocalUserStateSubsystem* LocalUserState = LobbySubsystem->LocalUserState;
+	UUserStateSubsystem* LocalUserState = LobbySubsystem->LocalUserState;
 	if(!LocalUserState) return;
 	
 	if(Data->ResultCode == EOS_EResult::EOS_Success)
@@ -81,7 +80,7 @@ void ULobbySubsystem::OnCreateLobbyComplete(const EOS_Lobby_CreateLobbyCallbackI
 
 		// TODO: Add compatibility for other platforms. Currently only steam.
 		// Create a shadow lobby for platforms besides Epic to show the lobby for other players from the same platform.
-		if(LocalUserState->GetPlatformType() == EPlatformType::PlatformType_Steam)
+		if(LocalUserState->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
 		{
 			// Create a shadow lobby on steam. This will let Steam users join using the overlay.
 			LobbySubsystem->CreateShadowLobby();
@@ -213,7 +212,7 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 	// TODO: Also check if the steam lobby you try to join exist at all, maybe it was deleted because the only member left crashed and could not clear the attribute on the eos lobby.
 
 	const ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-	ULocalUserStateSubsystem* LocalUserState = LobbySubsystem->LocalUserState;
+	UUserStateSubsystem* LocalUserState = LobbySubsystem->LocalUserState;
 	
 	if(Data->ResultCode == EOS_EResult::EOS_Success)
 	{
@@ -263,34 +262,94 @@ void ULobbySubsystem::OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Da
 
 void ULobbySubsystem::OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data)
 {
-	const ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
+	ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
+
+	// Call the appropriate method based on the status.
 	switch (Data->CurrentStatus)
 	{
 	case EOS_ELobbyMemberStatus::EOS_LMS_JOINED:
-		UE_LOG(LogLobbySubsystem, Log, TEXT("A user has joined the lobby"));
-		LobbySubsystem->OnLobbyUserJoinedDelegate.Broadcast();
+		LobbySubsystem->OnLobbyUserJoined(Data->TargetUserId);
 		break;
 	case EOS_ELobbyMemberStatus::EOS_LMS_LEFT:
-		UE_LOG(LogLobbySubsystem, Log, TEXT("A user has left the lobby"));
-		LobbySubsystem->OnLobbyUserLeftDelegate.Broadcast();
+		LobbySubsystem->OnLobbyUserLeft(Data->TargetUserId);
 		break;
 	case EOS_ELobbyMemberStatus::EOS_LMS_DISCONNECTED:
-		UE_LOG(LogLobbySubsystem, Log, TEXT("A user has unexpectedly left the lobby"));
-		LobbySubsystem->OnLobbyUserDisconnectedDelegate.Broadcast();
+		LobbySubsystem->OnLobbyUserDisconnected(Data->TargetUserId);
 		break;
 	case EOS_ELobbyMemberStatus::EOS_LMS_KICKED:
-		UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been kicked from the lobby"));
-		LobbySubsystem->OnLobbyUserKickedDelegate.Broadcast();
+		LobbySubsystem->OnLobbyUserKicked(Data->TargetUserId);
 		break;
 	case EOS_ELobbyMemberStatus::EOS_LMS_PROMOTED:
-		UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been promoted to lobby owner"));
-		LobbySubsystem->OnLobbyUserPromotedDelegate.Broadcast();
+		LobbySubsystem->OnLobbyUserPromoted(Data->TargetUserId);
 		break;
 	case EOS_ELobbyMemberStatus::EOS_LMS_CLOSED:
 		UE_LOG(LogLobbySubsystem, Log, TEXT("The lobby has been closed and user has been removed"));
 		// TODO: Update widget and clear corresponding LocalUserState data, etc.
 		break;
 	}
+}
+
+void ULobbySubsystem::OnLobbyUserJoined(const EOS_ProductUserId TargetUserID)
+{
+	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has joined the lobby"));
+	// TODO: Check if user is a friend. If so, get the friend user and add it to the list of connected users. This prevents api call.
+
+	// Add the user to the list of users to load.
+	UsersToLoad.Add(TargetUserID);
+	
+	// Get the user info and store it in the connected users list.
+	UAuthSubsystem* AuthSubsystem = GetGameInstance()->GetSubsystem<UAuthSubsystem>();
+	TArray<EOS_ProductUserId> UserIDs;
+	UserIDs.Add(TargetUserID);
+	AuthSubsystem->GetUserInfo(UserIDs, [this, TargetUserID](FOnlineUserMap OnlineUsers)
+	{
+		FOnlineUser OnlineUser = FOnlineUser();
+		if(OnlineUsers.IsEmpty())
+		{
+			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to get user info for user that joined the lobby"));
+			OnlineUser.DisplayName = "Unknown";
+			OnlineUser.ProductUserID = TargetUserID;
+		}
+		else OnlineUser = OnlineUsers[0]; // Get first user in the map since we only requested one for user.
+		
+		OnlineUser.bInLobby = true;
+		LocalUserState->AddConnectedUser(OnlineUser);
+
+		if(UsersToLoad.Find(TargetUserID) != INDEX_NONE)
+		{
+			OnLobbyUserJoinedDelegate.Broadcast(OnlineUser);
+		}
+		else UE_LOG(LogLobbySubsystem, Warning, TEXT("User left before we could load their data. Delegate will not be broadcasted."));
+	});
+
+
+
+	
+	// OnLobbyUserJoinedDelegate.Broadcast();
+}
+
+void ULobbySubsystem::OnLobbyUserLeft(const EOS_ProductUserId TargetUserID)
+{
+	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has left the lobby"));
+	OnLobbyUserLeftDelegate.Broadcast();
+}
+
+void ULobbySubsystem::OnLobbyUserDisconnected(const EOS_ProductUserId TargetUserID)
+{
+	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has unexpectedly left the lobby"));
+	OnLobbyUserDisconnectedDelegate.Broadcast();
+}
+
+void ULobbySubsystem::OnLobbyUserKicked(const EOS_ProductUserId TargetUserID)
+{
+	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been kicked from the lobby"));
+	OnLobbyUserKickedDelegate.Broadcast();
+}
+
+void ULobbySubsystem::OnLobbyUserPromoted(const EOS_ProductUserId TargetUserID)
+{
+	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been promoted to lobby owner"));
+	OnLobbyUserPromotedDelegate.Broadcast();
 }
 
 
@@ -341,7 +400,6 @@ void ULobbySubsystem::OnJoinShadowLobbyComplete(const uint64 ShadowLobbyId)
 
 
 // --------------------------------------------
-
 
 
 /**

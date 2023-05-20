@@ -1,17 +1,15 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "Steam/SteamLobbyManager.h"
-
+#include "Platforms/Steam/SteamLobbyManager.h"
 #pragma warning(push)
 #pragma warning(disable: 4996)
 #pragma warning(disable: 4265)
 #include "steam_api.h"
-#include "isteamuser.h"
 #include "steamnetworkingtypes.h"
 #pragma warning(pop)
+#include "Platforms/EOS/Subsystems/LobbySubsystem.h"
+#include "UserStateSubsystem.h"
 
-#include "EOS/Subsystems/LobbySubsystem.h"
-#include "EOS/Subsystems/LocalUserStateSubsystem.h"
 
 
 FSteamLobbyManager::FSteamLobbyManager(UGameInstance* InGameInstance)
@@ -31,7 +29,7 @@ FSteamLobbyManager::FSteamLobbyManager(UGameInstance* InGameInstance)
 void FSteamLobbyManager::CreateShadowLobby()
 {
 	if(!GameInstance) return;
-	const ULocalUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<ULocalUserStateSubsystem>();
+	const UUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<UUserStateSubsystem>();
 	if(!LocalUserState) return;
 
 	if(!LocalUserState->IsInLobby())
@@ -46,7 +44,7 @@ void FSteamLobbyManager::CreateShadowLobby()
 
 void FSteamLobbyManager::OnCreateShadowLobbyComplete(LobbyCreated_t* Data, bool bIOFailure)
 {
-	ULocalUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<ULocalUserStateSubsystem>();
+	UUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<UUserStateSubsystem>();
 	if(!LocalUserState) return;
 	LocalUserState->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to create lobby.
 	
@@ -92,7 +90,7 @@ void FSteamLobbyManager::JoinShadowLobby(uint64 SteamLobbyID)
 void FSteamLobbyManager::OnJoinShadowLobbyComplete(LobbyEnter_t* Data, bool bIOFailure)
 {
 	if(!GameInstance) return;
-	ULocalUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<ULocalUserStateSubsystem>();
+	UUserStateSubsystem* LocalUserState = GameInstance->GetSubsystem<UUserStateSubsystem>();
 	ULobbySubsystem* LobbySubsystem = GameInstance->GetSubsystem<ULobbySubsystem>();
 	if(!LocalUserState || !LobbySubsystem) return;
 	LocalUserState->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to join.

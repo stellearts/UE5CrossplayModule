@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Tickable.h"
 #include "eos_sdk.h"
-#include "Steam/SteamManager.h"
+#include "Platforms/Steam/SteamManager.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogEOSSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogEOSSubsystem);

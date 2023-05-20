@@ -2,7 +2,8 @@
 
 #include "OnlineMultiplayer.h"
 #include "Modules/ModuleManager.h"
-#include "EOS/EOSManager.h"
+#include "Platforms/Steam/SteamManager.h"
+#include "Platforms/EOS/EOSManager.h"
 
 
 

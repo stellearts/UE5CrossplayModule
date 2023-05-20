@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
+#include "UserStateSubsystem.h"
 #include "AuthSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAuthSubsystem, Log, All);
@@ -44,10 +45,12 @@ private:
 	void OnLogoutConnectComplete();
 
 public:
-	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs);
+	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FOnlineUserMap)> Callback);
 
 private:
-	static void OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);
+	static void EOS_CALL OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);
+	TFunction<void(FOnlineUserMap)> GetUserInfoCallback;
+	
 	
 	void LinkUserAuth();
 	void CreateNewUserConnect();
@@ -59,6 +62,8 @@ private:
 	EOS_ProductUserId EosProductUserId;
 	EOS_ContinuanceToken EosContinuanceToken;
 
+	class FSteamManager* SteamManager;
+
 	UPROPERTY()
-	class ULocalUserStateSubsystem* LocalUserState;
+	UUserStateSubsystem* LocalUserState;
 };

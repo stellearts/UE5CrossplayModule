@@ -23,12 +23,12 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
-	void InviteFriend();
+	void InviteFriendToLobby();
 
 private:
 	class FEosManager* EosManager;
 	EOS_HFriends FriendsHandle;
 	
 	UPROPERTY()
-	class ULocalUserStateSubsystem* LocalUserState;
+	class UUserStateSubsystem* LocalUserState;
 };

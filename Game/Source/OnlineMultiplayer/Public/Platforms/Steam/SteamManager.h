@@ -61,6 +61,13 @@ private:
 	TArray<uint8> SessionTicket;
 	bool bWaitingForSessionTicket = false;
 	bool bSessionTicketReady = false;
+
+public:
+	void GetUserAvatar(std::string UserID);
+
+private:
+	void ProcessAvatar(const CSteamID& UserID);
+	STEAM_CALLBACK(FSteamManager, OnPersonaStateChange, PersonaStateChange_t);
 	
 	SteamNetworkingIdentity Identity;
 

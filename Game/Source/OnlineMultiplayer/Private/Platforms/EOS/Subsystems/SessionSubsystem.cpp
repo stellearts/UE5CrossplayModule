@@ -1,10 +1,9 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "EOS/Subsystems/SessionSubsystem.h"
-
-#include "EOS/EOSManager.h"
+#include "Platforms/EOS/Subsystems/SessionSubsystem.h"
+#include "Platforms/EOS/EOSManager.h"
 #include "eos_sessions.h"
-#include "EOS/Subsystems/LocalUserStateSubsystem.h"
+#include "UserStateSubsystem.h"
 
 
 void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -12,7 +11,7 @@ void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	// Make sure the local user state subsystem is initialized.
-	LocalUserState = Collection.InitializeDependency<ULocalUserStateSubsystem>();
+	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();

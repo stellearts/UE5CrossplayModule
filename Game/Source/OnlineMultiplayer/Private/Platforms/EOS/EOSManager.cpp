@@ -1,18 +1,12 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "EOS/EOSManager.h"
-
-#include "Steam/SteamManager.h"
+#include "Platforms/EOS/EOSManager.h"
+#include "Platforms/Steam/SteamManager.h"
 #include <string>
 
 #include "eos_sdk.h"
 #include "eos_logging.h"
 #include "eos_common.h"
-#include "eos_connect_types.h"
-#include "eos_auth.h"
-#include "eos_connect.h"
-#include "eos_sessions.h"
-#include "eos_sessions_types.h"
 #include "eos_integratedplatform.h"
 
 

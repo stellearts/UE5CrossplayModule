@@ -1,10 +1,10 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "EOS/Subsystems/AuthSubsystem.h"
-#include "EOS/Subsystems/LocalUserStateSubsystem.h"
-
-#include "EOS/EOSManager.h"
+#include "Platforms/EOS/Subsystems/AuthSubsystem.h"
+#include "Platforms/EOS/EOSManager.h"
 #include "eos_auth.h"
+#include "UserStateSubsystem.h"
+
 
 
 
@@ -12,8 +12,10 @@ void UAuthSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
+	SteamManager = &FSteamManager::Get();
+
 	// Make sure the local user state subsystem is initialized.
-	LocalUserState = Collection.InitializeDependency<ULocalUserStateSubsystem>();
+	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
@@ -52,7 +54,7 @@ void UAuthSubsystem::OnLoginAuthComplete(const EOS_Auth_LoginCallbackInfo* Data)
 {
 	UAuthSubsystem* AuthSubsystem = static_cast<UAuthSubsystem*>(Data->ClientData);
 	if(!AuthSubsystem) return;
-	ULocalUserStateSubsystem* LocalUserState = AuthSubsystem->LocalUserState;
+	UUserStateSubsystem* LocalUserState = AuthSubsystem->LocalUserState;
 	if(!LocalUserState) return;
 	
 	if(Data->ResultCode == EOS_EResult::EOS_Success)
@@ -114,7 +116,7 @@ void UAuthSubsystem::OnLoginConnectComplete(const EOS_Connect_LoginCallbackInfo*
 {
 	UAuthSubsystem* AuthSubsystem = static_cast<UAuthSubsystem*>(Data->ClientData);
 	if(!AuthSubsystem) return;
-	ULocalUserStateSubsystem* LocalUserState = AuthSubsystem->LocalUserState;
+	UUserStateSubsystem* LocalUserState = AuthSubsystem->LocalUserState;
 	if(!LocalUserState) return;
 	
 	if (Data->ResultCode == EOS_EResult::EOS_Success)
@@ -244,46 +246,126 @@ void UAuthSubsystem::CheckAccounts()
 
 // --------------------------------------------
 
-
-void UAuthSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs)
+struct FGetUserInfoCallbackData
 {
+	UAuthSubsystem* AuthSubsystem;
+	UUserStateSubsystem* UserStateSubsystem;
+	TArray<EOS_ProductUserId> UserIDs;
+};
+
+/**
+ * Get the necessary info for the given Product User IDs.
+ * This also returns the external account info for the given Product User IDs and binds it to each user.
+ *
+ * @param UserIDs Product-User-IDs array to get the external accounts info for.
+ * @param Callback The callback to call upon completion, returning FOnlineUserMap.
+ */
+void UAuthSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FOnlineUserMap)> Callback)
+{
+	// Data we need in the OnGetProductUserExternalAccountInfoComplete
+	const TUniquePtr<FGetUserInfoCallbackData> CallbackData = MakeUnique<FGetUserInfoCallbackData>();
+	CallbackData->AuthSubsystem = this;
+	CallbackData->UserStateSubsystem = LocalUserState;
+	CallbackData->UserIDs = UserIDs;
+	
 	EOS_Connect_QueryProductUserIdMappingsOptions Options;
 	Options.ApiVersion = EOS_CONNECT_QUERYPRODUCTUSERIDMAPPINGS_API_LATEST;
 	Options.LocalUserId = LocalUserState->GetProductUserID();
 	Options.ProductUserIds = UserIDs.GetData();
 	Options.ProductUserIdCount = UserIDs.Num();
-	
-	EOS_Connect_QueryProductUserIdMappings(ConnectHandle, &Options, this, &UAuthSubsystem::OnGetUserInfoComplete);
+
+	GetUserInfoCallback = Callback;
+	EOS_Connect_QueryProductUserIdMappings(ConnectHandle, &Options, CallbackData.Get(), &UAuthSubsystem::OnGetUserInfoComplete);
 }
 
 void UAuthSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data)
 {
+	const FGetUserInfoCallbackData* CallbackData = static_cast<FGetUserInfoCallbackData*>(Data->ClientData);
+	UAuthSubsystem* AuthSubsystem = CallbackData->AuthSubsystem;
+	
 	if (Data->ResultCode != EOS_EResult::EOS_Success)
 	{
-		// Handle failure
+		UE_LOG(LogAuthSubsystem, Error, TEXT("EOS_Connect_QueryProductUserIdMappings failed with error code: [%d]"), Data->ResultCode);
+		AuthSubsystem->GetUserInfoCallback(FOnlineUserMap());
 		return;
 	}
-
-	// TODO: Remove GEngine and use something like GameInstance member variable.
-	if(!GEngine) return;
-	const UAuthSubsystem* AuthSubsystem = static_cast<UAuthSubsystem*>(Data->ClientData);
-	const ULocalUserStateSubsystem* LocalUserState = GEngine->GameViewport->GetWorld()->GetSubsystem<ULocalUserStateSubsystem>();
-
-	for (uint32 Index = 0; Index < Data->ProductUserIdCount; ++Index)
+	
+	const TArray<EOS_ProductUserId>& UserIDs = CallbackData->UserIDs;
+	FOnlineUserMap OnlineUsers = {}; // To pass to the callback.
+	
+	// Iterate over all the users we requested info for.
+	for(int32_t UserIndex = 0; UserIndex < UserIDs.Num(); UserIndex++)
 	{
-		EOS_ProductUserId UserId = Data->ProductUserIds[Index];
-		EOS_Connect_CopyProductUserExternalAccountByIndexOptions Options = {EOS_CONNECT_COPYPRODUCTUSEREXTERNALACCOUNTBYINDEX_API_LATEST, UserId, Index};
-		EOS_EExternalAccountType AccountType;
-		EOS_Connect_ExternalAccountInfo ExternalAccountInfo;
-		EOS_EResult Result = EOS_Connect_CopyProductUserExternalAccountByIndex(AuthSubsystem->ConnectHandle, &Options, &ExternalAccountInfo);
+		const EOS_ProductUserId TargetUserID = UserIDs[UserIndex];
+		EOS_Connect_GetProductUserExternalAccountCountOptions ExternalAccountCountOptions;
+		ExternalAccountCountOptions.ApiVersion = EOS_CONNECT_GETPRODUCTUSEREXTERNALACCOUNTCOUNT_API_LATEST;
+		ExternalAccountCountOptions.TargetUserId = TargetUserID;
 
-		if (Result == EOS_EResult::EOS_Success)
+		FExternalAccountsMap ExternalAccounts;
+		const int32_t AccountCount = EOS_Connect_GetProductUserExternalAccountCount(AuthSubsystem->ConnectHandle, &ExternalAccountCountOptions);
+
+		// Iterate over all the accounts for this user and add them to the ExternalAccounts map.
+		for (int32_t AccountIndex = 0; AccountIndex < AccountCount; ++AccountIndex)
 		{
-			// You have the ExternalAccountInfo for this user. You can use this info as per your need.
+			EOS_Connect_CopyProductUserExternalAccountByIndexOptions CopyOptions;
+			CopyOptions.ApiVersion = EOS_CONNECT_COPYPRODUCTUSEREXTERNALACCOUNTBYINDEX_API_LATEST;
+			CopyOptions.TargetUserId = TargetUserID;
+			CopyOptions.ExternalAccountInfoIndex = AccountIndex;
+
+			EOS_Connect_ExternalAccountInfo* EOS_AccountInfo;
+			const EOS_EResult Result = EOS_Connect_CopyProductUserExternalAccountByIndex(AuthSubsystem->ConnectHandle, &CopyOptions, &EOS_AccountInfo);
+			
+			if (Result == EOS_EResult::EOS_Success)
+			{
+				FExternalAccount AccountInfo;
+				AccountInfo.ProductUserID = EOS_AccountInfo->ProductUserId;
+				AccountInfo.DisplayName = EOS_AccountInfo->DisplayName ? EOS_AccountInfo->DisplayName : "";
+				AccountInfo.AccountID = EOS_AccountInfo->AccountId ? EOS_AccountInfo->AccountId : "";
+				AccountInfo.AccountType = EOS_AccountInfo->AccountIdType;
+				AccountInfo.LastLoginTime = EOS_AccountInfo->LastLoginTime;
+
+				ExternalAccounts.Add(EOS_AccountInfo->AccountIdType, AccountInfo);
+			}
+			else
+			{
+				UE_LOG(LogAuthSubsystem, Error, TEXT("Failed to get external account info. Error code: %hs"), EOS_EResult_ToString(Result)); // Handle error.
+			}
+
+			EOS_Connect_ExternalAccountInfo_Release(EOS_AccountInfo);
 		}
-		else
+
+		// TODO: Try find a better way to determine logged in platform. This is not the best way, since a user can have multiple accounts and open the game on multiple devices. Which is a rare use case, but there should be a better way.
+		// Get the platform the user is on.
+		EOS_EExternalAccountType MostRecentPlatform = ExternalAccounts.CreateConstIterator().Value().AccountType;
+		int64_t MostRecentLoginTime = 0;
+		for (const auto& Account : ExternalAccounts)
 		{
-			// Handle failure
+			if (Account.Value.LastLoginTime > MostRecentLoginTime)
+			{
+				MostRecentLoginTime = Account.Value.LastLoginTime;
+				MostRecentPlatform = Account.Value.AccountType;
+			}
 		}
+
+		UE_LOG(LogTemp, Warning, TEXT("Most recent platform: %d"), MostRecentPlatform);
+
+		// Make the OnlineUser struct and add it to the OnlineUsers map.
+		FOnlineUser OnlineUser;
+		OnlineUser.ProductUserID = TargetUserID;
+		OnlineUser.ExternalAccounts = ExternalAccounts;
+		OnlineUser.Platform = MostRecentPlatform;
+		OnlineUser.PlatformID = ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].AccountID : "";
+		OnlineUser.DisplayName = ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].DisplayName : "Unknown";
+		OnlineUsers.Add(TargetUserID, OnlineUser);
+		
+		// Load avatar from the user's platform.
+		if(OnlineUser.Platform == EOS_EExternalAccountType::EOS_EAT_STEAM)
+		{
+			AuthSubsystem->SteamManager->GetUserAvatar(OnlineUser.PlatformID);
+		}
+		// TODO: Other platforms eventually.
 	}
+	
+	AuthSubsystem->GetUserInfoCallback(OnlineUsers);
+	AuthSubsystem->GetUserInfoCallback = TFunction<void(FOnlineUserMap)>(); // Clear the callback.
 }
