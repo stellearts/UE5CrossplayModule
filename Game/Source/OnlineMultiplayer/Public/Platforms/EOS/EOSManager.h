@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "Tickable.h"
 #include "eos_sdk.h"
-#include "Platforms/Steam/SteamManager.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogEOSSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogEOSSubsystem);
@@ -13,22 +12,15 @@ inline DEFINE_LOG_CATEGORY(LogEOSSubsystem);
 
 
 /**
- * Singleton class for the EOS-SDK.
+ * Responsible for initializing the SDK.
  * 
- * Responsible for initializing the SDK and providing helper functions and variables for other classes.
- * 
- * Should be used by the subsystems than handle online related functionality.
+ * Other classes can get the platform-handle from this class.
  */
 class ONLINEMULTIPLAYER_API FEosManager final : public FTickableGameObject
 {
 	// Private constructor to prevent direct instantiation
-	FEosManager();
-	// Prevent copy-construction
-	FEosManager(const FEosManager&) = delete;
-	// Prevent assignment
-	FEosManager& operator=(const FEosManager&) = delete;
-
-	~FEosManager();
+	FEosManager() = default;
+	virtual ~FEosManager() override;
 	
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override;
@@ -44,22 +36,9 @@ private:
 	EOS_EResult CreateIntegratedPlatform(EOS_Platform_Options& PlatformOptions);
 	void FreeIntegratedPlatform(EOS_Platform_Options& PlatformOptions);
 
-public:
-	void RequestSteamEncryptedAppTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback);
-	void RequestSteamSessionTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback);
-
-private:
-	static void OnSteamEncryptedAppTicketResponse(const TArray<uint8> Ticket);
-	TFunction<void(std::string TicketString)> SteamEncryptedAppTicketCallback;
-	static void OnSteamSessionTicketResponse(const TArray<uint8> Ticket);
-	TFunction<void(std::string TicketString)> SteamSessionTicketCallback;
 	
-	FSteamManager* SteamManager;
 	EOS_HPlatform PlatformHandle;
-	bool bIsInitialized = false;
-
+	
 public:
-	FORCEINLINE void SetRichPresence(const char *Key, const char *Value) const {SteamManager->SetRichPresence(Key, Value);}
 	FORCEINLINE EOS_HPlatform GetPlatformHandle() const { return PlatformHandle; }
-	FORCEINLINE CSteamID GetSteamID() const { return SteamManager->GetSteamID(); }
 };

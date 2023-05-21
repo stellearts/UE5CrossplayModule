@@ -3,7 +3,7 @@
 #include "Platforms/EOS/Subsystems/LobbySubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_lobby.h"
-#include "Platforms/Steam/SteamLobbyManager.h"
+#include "Platforms/Steam/Subsystems/SteamLobbySubsystem.h"
 #include "UserStateSubsystem.h"
 #include "Platforms/EOS/Subsystems/AuthSubsystem.h"
 
@@ -12,12 +12,12 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// Make sure the local user state subsystem is initialized. Store it as member since we will need to use it often.
+	// Make sure the local user state subsystem is initialized. Store it as member since I will need to use it often.
 	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
 	
 	// TODO: Add compatibility for other platforms. Currently only steam.
 	// TODO: Maybe use preprocessor directives for platform specific code.
-	SteamLobbyManager = MakeUnique<FSteamLobbyManager>(GetGameInstance());
+	SteamLobbySubsystem = Collection.InitializeDependency<USteamLobbySubsystem>();
 	
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
@@ -358,10 +358,8 @@ void ULobbySubsystem::OnLobbyUserPromoted(const EOS_ProductUserId TargetUserID)
 
 void ULobbySubsystem::CreateShadowLobby()
 {
-	if(!LocalUserState || !SteamLobbyManager.IsValid()) return;
-	
-	OnCreateShadowLobbyCompleteDelegateHandle = SteamLobbyManager->OnCreateShadowLobbyCompleteDelegate.AddUObject(this, &ULobbySubsystem::OnCreateShadowLobbyComplete);
-	SteamLobbyManager->CreateShadowLobby();
+	OnCreateShadowLobbyCompleteDelegateHandle = SteamLobbySubsystem->OnCreateShadowLobbyCompleteDelegate.AddUObject(this, &ULobbySubsystem::OnCreateShadowLobbyComplete);
+	SteamLobbySubsystem->CreateShadowLobby();
 }
 
 /**
@@ -373,9 +371,7 @@ void ULobbySubsystem::CreateShadowLobby()
  */
 void ULobbySubsystem::OnCreateShadowLobbyComplete(const uint64 ShadowLobbyID)
 {
-	if(!LocalUserState || !SteamLobbyManager.IsValid()) return;
-	
-	SteamLobbyManager->OnCreateShadowLobbyCompleteDelegate.Remove(OnCreateShadowLobbyCompleteDelegateHandle);
+	SteamLobbySubsystem->OnCreateShadowLobbyCompleteDelegate.Remove(OnCreateShadowLobbyCompleteDelegateHandle);
 	LocalUserState->SetShadowLobbyID(ShadowLobbyID); // 0 if failed to create shadow lobby.
 
 	if(ShadowLobbyID)
@@ -408,7 +404,6 @@ void ULobbySubsystem::OnJoinShadowLobbyComplete(const uint64 ShadowLobbyId)
 void ULobbySubsystem::AddShadowLobbyIdAttribute(const uint64 ShadowLobbyID)
 {
 	// TODO: Add multiple platforms compatibility.
-	if(!LocalUserState) return;
 	
     EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
     UpdateLobbyModificationOptions.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST;

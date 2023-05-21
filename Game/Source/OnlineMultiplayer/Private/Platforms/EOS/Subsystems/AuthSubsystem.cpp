@@ -1,6 +1,7 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Platforms/EOS/Subsystems/AuthSubsystem.h"
+#include "Platforms/EOS/Subsystems/UserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_auth.h"
 #include "UserStateSubsystem.h"
@@ -12,10 +13,9 @@ void UAuthSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	SteamManager = &FSteamManager::Get();
-
 	// Make sure the local user state subsystem is initialized.
 	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
+	UserSubsystem = Collection.InitializeDependency<UUserSubsystem>();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
@@ -32,8 +32,10 @@ void UAuthSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void UAuthSubsystem::LoginAuth()
 {
+	// TODO: Also check if user is already logged in. Would prevent api call.
 	if(!AuthHandle) return;
-	EosManager->RequestSteamSessionTicket([this](std::string TicketString)
+	
+	UserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
 	{
 		EOS_Auth_Credentials Credentials;
 		Credentials.ApiVersion = EOS_AUTH_CREDENTIALS_API_LATEST;
@@ -89,8 +91,11 @@ void UAuthSubsystem::OnLogoutAuthComplete()
 
 void UAuthSubsystem::LoginConnect()
 {
+	// TODO: Also check if user is already logged in. Would prevent api call.
 	if(!ConnectHandle) return;
-	EosManager->RequestSteamSessionTicket([this](std::string TicketString)
+
+	// TODO: Change to more generic name like GetLoginToken or something which will then call the correct function, depending on the platform. For steam: GetSteamSessionTicket.
+	UserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
 	{
 		EOS_Connect_Credentials Credentials;
 		Credentials.ApiVersion = EOS_CONNECT_CREDENTIALS_API_LATEST;
@@ -361,7 +366,7 @@ void UAuthSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdM
 		// Load avatar from the user's platform.
 		if(OnlineUser.Platform == EOS_EExternalAccountType::EOS_EAT_STEAM)
 		{
-			AuthSubsystem->SteamManager->GetUserAvatar(OnlineUser.PlatformID);
+			AuthSubsystem->UserSubsystem->GetUserAvatar(OnlineUser.PlatformID); // TODO: Create this function which then checks the platform.
 		}
 		// TODO: Other platforms eventually.
 	}

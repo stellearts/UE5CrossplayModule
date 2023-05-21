@@ -5,7 +5,6 @@
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
 #include "OnlineMultiplayer_CommonTypes.h"
-#include "Platforms/Steam/SteamLobbyManager.h"
 #include "LobbySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLobbySubsystem, Log, All);
@@ -109,6 +108,7 @@ private:
 	// Shadow Lobby delegate-handles for unbinding upon completion.
 	FDelegateHandle OnCreateShadowLobbyCompleteDelegateHandle;
 	FDelegateHandle OnJoinShadowLobbyCompleteDelegateHandle;
-	
-	TUniquePtr<FSteamLobbyManager> SteamLobbyManager;
+
+	UPROPERTY()
+	class USteamLobbySubsystem* SteamLobbySubsystem;
 };

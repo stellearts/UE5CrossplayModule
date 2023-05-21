@@ -3,6 +3,7 @@
 #pragma once
 
 #include "eos_common.h"
+#include <string>
 #include "OnlineMultiplayer_CommonTypes.generated.h"
 
 

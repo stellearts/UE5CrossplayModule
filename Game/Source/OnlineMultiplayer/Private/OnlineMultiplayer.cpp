@@ -13,6 +13,10 @@
 void FOnlineMultiplayer::StartupModule()
 {
 	UE_LOG(LogTemp, Warning, TEXT("FOnlineMultiplayer::StartupModule"));
+
+	
+	// TODO: Initialize the correct SDK for the platform the user is on.
+	// TODO: Check if singleton like this is best way? And rename the managers from PlatformNameManager to PlatformNameSDK?
 	
 	// Initialize the Steamworks SDK.
 	FSteamManager::Get().Initialize();
@@ -23,6 +27,7 @@ void FOnlineMultiplayer::StartupModule()
 
 void FOnlineMultiplayer::ShutdownModule()
 {
+	// TODO: DeInitialize the correct SDK for the platform the user is on.
 	FSteamManager::Get().DeInitialize();
 }
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-
+#include <string>
 #pragma warning(push)
 #pragma warning(disable: 4996)
 #pragma warning(disable: 4265)
@@ -14,8 +14,6 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamManager, Log, All);
 inline DEFINE_LOG_CATEGORY(LogSteamManager);
-
-#define LOG_STEAM_NULL UE_LOG(LogSteamManager, Error, TEXT("Steam SDK is not initialized."));
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnEncryptedAppTicketReady, TArray<uint8>);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionTicketReady, TArray<uint8>);
@@ -30,10 +28,6 @@ class ONLINEMULTIPLAYER_API FSteamManager : public FTickableGameObject
 {
 	// Private constructor to prevent direct instantiation
 	FSteamManager();
-	// Prevent copy-construction
-	FSteamManager(const FSteamManager&) = delete;
-	// Prevent assignment
-	FSteamManager& operator=(const FSteamManager&) = delete;
 	
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override;
@@ -43,35 +37,4 @@ public:
 	static FSteamManager& Get();
 	void Initialize();
 	void DeInitialize();
-
-	
-	// Tickets
-	void RequestEncryptedAppTicket();
-	FOnEncryptedAppTicketReady OnEncryptedAppTicketReady;
-	void RequestSessionTicket();
-	FOnSessionTicketReady OnSessionTicketReady;
-	
-private:
-	// Ticket callbacks
-	void OnEncryptedAppTicketResponse( EncryptedAppTicketResponse_t *pEncryptedAppTicketResponse, bool bIOFailure );
-	CCallResult<FSteamManager, EncryptedAppTicketResponse_t> m_EncryptedAppTicketResponseCallResult;
-	STEAM_CALLBACK(FSteamManager, OnSessionTicketResponse, GetAuthSessionTicketResponse_t);
-
-	// Session ticket data
-	TArray<uint8> SessionTicket;
-	bool bWaitingForSessionTicket = false;
-	bool bSessionTicketReady = false;
-
-public:
-	void GetUserAvatar(std::string UserID);
-
-private:
-	void ProcessAvatar(const CSteamID& UserID);
-	STEAM_CALLBACK(FSteamManager, OnPersonaStateChange, PersonaStateChange_t);
-	
-	SteamNetworkingIdentity Identity;
-
-public:
-	FORCEINLINE void SetRichPresence(const char *Key, const char *Value) { SteamFriends()->SetRichPresence(Key, Value); }
-	FORCEINLINE CSteamID GetSteamID() const { return SteamUser()->GetSteamID(); }
 };

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "UserStateSubsystem.h"
+#include "OnlineMultiplayer_CommonTypes.h"
 #include "AuthSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAuthSubsystem, Log, All);
@@ -57,13 +57,15 @@ private:
 	void CheckAccounts();
 
 	class FEosManager* EosManager;
+	class FSteamManager* SteamManager;
+	
 	EOS_HAuth AuthHandle;
 	EOS_HConnect ConnectHandle;
 	EOS_ProductUserId EosProductUserId;
 	EOS_ContinuanceToken EosContinuanceToken;
 
-	class FSteamManager* SteamManager;
-
 	UPROPERTY()
-	UUserStateSubsystem* LocalUserState;
+	class UUserStateSubsystem* LocalUserState;
+	UPROPERTY()
+	class UUserSubsystem* UserSubsystem;
 };
