@@ -1,17 +1,17 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "Platforms/EOS/Subsystems/UserSubsystem.h"
+#include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "Platforms/Steam/SteamManager.h"
 #include "Platforms/Steam/Subsystems/SteamUserSubsystem.h"
 
 
-UUserSubsystem::UUserSubsystem()
+ULocalUserSubsystem::ULocalUserSubsystem()
 {
 	EosManager = FEosManager::Get();
 }
 
-void UUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	
@@ -24,8 +24,8 @@ void UUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// TODO: Steam should not run at all if playing on different platform, find a way to disable it and run this conditionally.
 	// Get the SteamManager and set necessary callbacks.
 	SteamUserSubsystem = Collection.InitializeDependency<USteamUserSubsystem>();
-	SteamUserSubsystem->OnSessionTicketReady.AddUObject(this, &UUserSubsystem::OnSteamSessionTicketResponse);
-	SteamUserSubsystem->OnEncryptedAppTicketReady.AddUObject(this, &UUserSubsystem::OnSteamEncryptedAppTicketResponse);
+	SteamUserSubsystem->OnSessionTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamSessionTicketResponse);
+	SteamUserSubsystem->OnEncryptedAppTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamEncryptedAppTicketResponse);
 }
 
 
@@ -37,7 +37,7 @@ void UUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
  *
  * @param TicketReadyCallback The callback to call when the ticket is ready.
  */
-void UUserSubsystem::RequestSteamEncryptedAppTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback)
+void ULocalUserSubsystem::RequestSteamEncryptedAppTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback)
 {
 	SteamEncryptedAppTicketCallback = TicketReadyCallback;
 	SteamUserSubsystem->RequestEncryptedAppTicket();
@@ -48,7 +48,7 @@ void UUserSubsystem::RequestSteamEncryptedAppTicket(const TFunction<void(std::st
  *
  * Converts the ticket to a string and broadcasts the delegate.
  */
-void UUserSubsystem::OnSteamEncryptedAppTicketResponse(const TArray<uint8> Ticket)
+void ULocalUserSubsystem::OnSteamEncryptedAppTicketResponse(const TArray<uint8> Ticket)
 {
 	if (Ticket.Num() > 0)
 	{
@@ -56,14 +56,14 @@ void UUserSubsystem::OnSteamEncryptedAppTicketResponse(const TArray<uint8> Ticke
 		uint32_t Len = 1024;
 		if (const EOS_EResult Result = EOS_ByteArray_ToString(Ticket.GetData(), Ticket.Num(), Buffer, &Len); Result != EOS_EResult::EOS_Success)
 		{
-			UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to convert encrypted app ticket to string"));
+			UE_LOG(LogLocalUserSubsystem, Error, TEXT("Failed to convert encrypted app ticket to string"));
 		}
 	
 		SteamEncryptedAppTicketCallback(Buffer);
 	}
 	else
 	{
-		UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to get Auth Session Ticket from Steam"));
+		UE_LOG(LogLocalUserSubsystem, Error, TEXT("Failed to get Auth Session Ticket from Steam"));
 		SteamEncryptedAppTicketCallback("");
 	}
 
@@ -76,7 +76,7 @@ void UUserSubsystem::OnSteamEncryptedAppTicketResponse(const TArray<uint8> Ticke
  *
  * @param TicketReadyCallback The callback to call when the ticket is ready.
  */
-void UUserSubsystem::RequestSteamSessionTicket(const TFunction<void(std::string TicketString)> TicketReadyCallback)
+void ULocalUserSubsystem::RequestSteamSessionTicket(const TFunction<void(std::string TicketString)> TicketReadyCallback)
 {
 	SteamSessionTicketCallback = TicketReadyCallback;
 	SteamUserSubsystem->RequestSessionTicket();
@@ -87,7 +87,7 @@ void UUserSubsystem::RequestSteamSessionTicket(const TFunction<void(std::string 
  *
  * Converts the ticket to a string and broadcasts the delegate.
  */
-void UUserSubsystem::OnSteamSessionTicketResponse(const TArray<uint8> Ticket)
+void ULocalUserSubsystem::OnSteamSessionTicketResponse(const TArray<uint8> Ticket)
 {
 	if (Ticket.Num() > 0)
 	{
@@ -95,14 +95,14 @@ void UUserSubsystem::OnSteamSessionTicketResponse(const TArray<uint8> Ticket)
 		uint32_t Len = 1024;
 		if (const EOS_EResult Result = EOS_ByteArray_ToString(Ticket.GetData(), Ticket.Num(), Buffer, &Len); Result != EOS_EResult::EOS_Success)
 		{
-			UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to convert encrypted app ticket to string"));
+			UE_LOG(LogLocalUserSubsystem, Error, TEXT("Failed to convert encrypted app ticket to string"));
 		}
 	
 		SteamSessionTicketCallback(Buffer);
 	}
 	else
 	{
-		UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to get Auth Session Ticket from Steam"));
+		UE_LOG(LogLocalUserSubsystem, Error, TEXT("Failed to get Auth Session Ticket from Steam"));
 		SteamSessionTicketCallback("");
 	}
 

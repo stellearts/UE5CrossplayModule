@@ -38,7 +38,6 @@ public:
 	FORCEINLINE uint64 GetShadowLobbyID() const { return LocalUser.ShadowLobbyID; }
 	FORCEINLINE EOS_EpicAccountId GetEpicAccountID() const { return LocalUser.EpicAccountID; }
 	FORCEINLINE EOS_ProductUserId GetProductUserID() const { return LocalUser.ProductUserID; }
-	FORCEINLINE EOS_ContinuanceToken GetContinuanceToken() const { return LocalUser.ContinuanceToken; }
 	FORCEINLINE EOS_EExternalAccountType GetPlatform() const { return LocalUser.Platform; }
 	
 	void SetLobbyID(const EOS_LobbyId InLobbyID) { LocalUser.LobbyID = InLobbyID; }

@@ -5,10 +5,10 @@
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
 #include "OnlineMultiplayer_CommonTypes.h"
-#include "AuthSubsystem.generated.h"
+#include "ConnectSubsystem.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogAuthSubsystem, Log, All);
-inline DEFINE_LOG_CATEGORY(LogAuthSubsystem);
+DECLARE_LOG_CATEGORY_EXTERN(LogConnectSubsystem, Log, All);
+inline DEFINE_LOG_CATEGORY(LogConnectSubsystem);
 
 
 
@@ -20,7 +20,7 @@ inline DEFINE_LOG_CATEGORY(LogAuthSubsystem);
  * Auth is used for user accounts and friends.
  */
 UCLASS(BlueprintType)
-class ONLINEMULTIPLAYER_API UAuthSubsystem : public UGameInstanceSubsystem
+class ONLINEMULTIPLAYER_API UConnectSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 	
@@ -34,15 +34,23 @@ public:
 	void Logout();
 
 private:
-	static void EOS_CALL OnLoginComplete(const EOS_Auth_LoginCallbackInfo* Data);
+	static void EOS_CALL OnLoginComplete(const EOS_Connect_LoginCallbackInfo* Data);
 	void OnLogoutComplete();
 
-	void LinkUserAuth();
+public:
+	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FOnlineUserMap)> Callback);
+
+private:
+	static void EOS_CALL OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);
+	TFunction<void(FOnlineUserMap)> GetUserInfoCallback;
+	
+	void CreateNewUser();
+	void CheckAccounts();
 
 	class FEosManager* EosManager;
 	class FSteamManager* SteamManager;
 	
-	EOS_HAuth AuthHandle;
+	EOS_HConnect ConnectHandle;
 	EOS_ProductUserId EosProductUserId;
 	EOS_ContinuanceToken EosContinuanceToken;
 
