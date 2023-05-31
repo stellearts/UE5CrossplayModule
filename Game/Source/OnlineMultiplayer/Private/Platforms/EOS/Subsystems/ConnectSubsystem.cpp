@@ -1,7 +1,7 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Platforms/EOS/Subsystems/ConnectSubsystem.h"
-#include "Platforms/EOS/Subsystems/UserSubsystem.h"
+#include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_connect.h"
 #include "UserStateSubsystem.h"
@@ -11,10 +11,11 @@
 void UConnectSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	
+	LocalUserSubsystem = Collection.InitializeDependency<ULocalUserSubsystem>();
+	OnlineUserSubsystem = Collection.InitializeDependency<UOnlineUserSubsystem>();
 
-	// Make sure the local user state subsystem is initialized.
-	UserState = Collection.InitializeDependency<UUserStateSubsystem>();
-	UserSubsystem = Collection.InitializeDependency<UUserSubsystem>();
+	LocalUser = LocalUserSubsystem->GetLocalUser();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
@@ -34,7 +35,7 @@ void UConnectSubsystem::Login()
 	if(!ConnectHandle) return;
 
 	// TODO: Change to more generic name like GetLoginToken or something which will then call the correct function, depending on the platform. For steam: GetSteamSessionTicket.
-	UserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
+	LocalUserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
 	{
 		EOS_Connect_Credentials Credentials;
 		Credentials.ApiVersion = EOS_CONNECT_CREDENTIALS_API_LATEST;
@@ -59,18 +60,16 @@ void UConnectSubsystem::Logout()
 void UConnectSubsystem::OnLoginComplete(const EOS_Connect_LoginCallbackInfo* Data)
 {
 	UConnectSubsystem* ConnectSubsystem = static_cast<UConnectSubsystem*>(Data->ClientData);
-	if(!ConnectSubsystem) return;
-	UUserStateSubsystem* UserState = ConnectSubsystem->UserState;
-	if(!UserState) return;
+	ULocalUser* LocalUser = ConnectSubsystem->LocalUserSubsystem->GetLocalUser();
 	
 	if (Data->ResultCode == EOS_EResult::EOS_Success)
 	{
-		UserState->SetProductUserId(Data->LocalUserId);
+		LocalUser->SetProductUserID(Data->LocalUserId);
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_InvalidUser)
 	{
 		// Create a new account. But maybe check if the user wants to do this.
-		UserState->SetContinuanceToken(Data->ContinuanceToken);
+		LocalUser->SetContinuanceToken(Data->ContinuanceToken);
 		ConnectSubsystem->CreateNewUser();
 	}
 	else
@@ -92,13 +91,11 @@ void UConnectSubsystem::OnLogoutComplete()
  * 
  * Associates the current platform with the Product User ID of this new account.
  */
-void UConnectSubsystem::CreateNewUserConnect()
+void UConnectSubsystem::CreateNewUser()
 {
-	if(!UserState) return;
-	
 	EOS_Connect_CreateUserOptions CreateUserOptions;
 	CreateUserOptions.ApiVersion = EOS_CONNECT_CREATEUSER_API_LATEST;
-	CreateUserOptions.ContinuanceToken = UserState->GetContinuanceToken();
+	CreateUserOptions.ContinuanceToken = LocalUser->GetContinuanceToken();
 	EOS_Connect_CreateUser(ConnectHandle, &CreateUserOptions, this, [](const EOS_Connect_CreateUserCallbackInfo* Data)
 	{
 		UConnectSubsystem* ConnectSubsystem = static_cast<UConnectSubsystem*>(Data->ClientData);
@@ -118,11 +115,9 @@ void UConnectSubsystem::CreateNewUserConnect()
 
 void UConnectSubsystem::CheckAccounts()
 {
-	if(!UserState) return;
-	
 	EOS_Connect_QueryProductUserIdMappingsOptions QueryMappingsOptions = {};
 	QueryMappingsOptions.ApiVersion = EOS_CONNECT_QUERYPRODUCTUSERIDMAPPINGS_API_LATEST;
-	QueryMappingsOptions.LocalUserId = UserState->GetProductUserID();
+	QueryMappingsOptions.LocalUserId = LocalUser->GetProductUserID();
 	EOS_ProductUserId ProductUserIds[] = {QueryMappingsOptions.LocalUserId};
 	QueryMappingsOptions.ProductUserIds = ProductUserIds;
 	QueryMappingsOptions.ProductUserIdCount = 1;
@@ -136,13 +131,13 @@ void UConnectSubsystem::CheckAccounts()
 		}
 		
 		const UConnectSubsystem* ConnectSubsystem = static_cast<UConnectSubsystem*>(Data->ClientData);
-		EOS_Connect_CopyProductUserExternalAccountByAccountTypeOptions Options = {};
+		EOS_Connect_CopyProductUserExternalAccountByAccountTypeOptions Options;
 		Options.ApiVersion = EOS_CONNECT_COPYPRODUCTUSEREXTERNALACCOUNTBYACCOUNTTYPE_API_LATEST;
 		Options.TargetUserId = Data->LocalUserId;
 		Options.AccountIdType = EOS_EExternalAccountType::EOS_EAT_STEAM;
 
 		EOS_Connect_ExternalAccountInfo* ExternalAccountInfo;
-		EOS_EResult Result = EOS_Connect_CopyProductUserExternalAccountByAccountType(ConnectSubsystem->ConnectHandle, &Options, &ExternalAccountInfo);
+		const EOS_EResult Result = EOS_Connect_CopyProductUserExternalAccountByAccountType(ConnectSubsystem->ConnectHandle, &Options, &ExternalAccountInfo);
 		if (Result != EOS_EResult::EOS_Success)
 		{
 			UE_LOG(LogConnectSubsystem, Error, TEXT("Steam account is not linked or an error occurred, error code %d"), Result);
@@ -173,17 +168,16 @@ struct FGetUserInfoCallbackData
  * @param UserIDs Product-User-IDs array to get the external accounts info for.
  * @param Callback The callback to call upon completion, returning FOnlineUserMap.
  */
-void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FOnlineUserMap)> Callback)
+void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FUsersMap)> Callback)
 {
 	// Data we need in the OnGetProductUserExternalAccountInfoComplete
 	const TUniquePtr<FGetUserInfoCallbackData> CallbackData = MakeUnique<FGetUserInfoCallbackData>();
 	CallbackData->ConnectSubsystem = this;
-	CallbackData->UserStateSubsystem = UserState;
 	CallbackData->UserIDs = UserIDs;
 	
 	EOS_Connect_QueryProductUserIdMappingsOptions Options;
 	Options.ApiVersion = EOS_CONNECT_QUERYPRODUCTUSERIDMAPPINGS_API_LATEST;
-	Options.LocalUserId = UserState->GetProductUserID();
+	Options.LocalUserId = LocalUser->GetProductUserID();
 	Options.ProductUserIds = UserIDs.GetData();
 	Options.ProductUserIdCount = UserIDs.Num();
 
@@ -199,12 +193,12 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 	if (Data->ResultCode != EOS_EResult::EOS_Success)
 	{
 		UE_LOG(LogConnectSubsystem, Error, TEXT("EOS_Connect_QueryProductUserIdMappings failed with error code: [%d]"), Data->ResultCode);
-		ConnectSubsystem->GetUserInfoCallback(FOnlineUserMap());
+		ConnectSubsystem->GetUserInfoCallback(FUsersMap());
 		return;
 	}
 	
 	const TArray<EOS_ProductUserId>& UserIDs = CallbackData->UserIDs;
-	FOnlineUserMap OnlineUsers = {}; // To pass to the callback.
+	FUsersMap OnlineUsers = {}; // To pass to the callback.
 	
 	// Iterate over all the users we requested info for.
 	for(int32_t UserIndex = 0; UserIndex < UserIDs.Num(); UserIndex++)
@@ -263,22 +257,26 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 		UE_LOG(LogTemp, Warning, TEXT("Most recent platform: %d"), MostRecentPlatform);
 
 		// Make the OnlineUser struct and add it to the OnlineUsers map.
-		FOnlineUser OnlineUser;
-		OnlineUser.ProductUserID = TargetUserID;
-		OnlineUser.ExternalAccounts = ExternalAccounts;
-		OnlineUser.Platform = MostRecentPlatform;
-		OnlineUser.PlatformID = ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].AccountID : "";
-		OnlineUser.DisplayName = ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].DisplayName : "Unknown";
+		UUser* OnlineUser = NewObject<UUser>();
+		OnlineUser->Initialize(
+			TargetUserID,
+			'', // TODO: Check if the user has epic external account and set this ID if so.
+			ExternalAccounts,
+			MostRecentPlatform,
+			ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].AccountID : "",
+			ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].DisplayName : "Unknown"
+		);
 		OnlineUsers.Add(TargetUserID, OnlineUser);
 		
 		// Load avatar from the user's platform.
-		if(OnlineUser.Platform == EOS_EExternalAccountType::EOS_EAT_STEAM)
+		if(OnlineUser->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
 		{
-			ConnectSubsystem->UserSubsystem->GetUserAvatar(OnlineUser.PlatformID); // TODO: Create this function which then checks the platform.
+			// TODO: this.
+			// ConnectSubsystem->UserSubsystem->GetUserAvatar(OnlineUser.PlatformID); // TODO: Create this function which then checks the platform.
 		}
 		// TODO: Other platforms eventually.
 	}
 	
 	ConnectSubsystem->GetUserInfoCallback(OnlineUsers);
-	ConnectSubsystem->GetUserInfoCallback = TFunction<void(FOnlineUserMap)>(); // Clear the callback.
+	ConnectSubsystem->GetUserInfoCallback = TFunction<void(FUsersMap)>(); // Clear the callback.
 }

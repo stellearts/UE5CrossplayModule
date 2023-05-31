@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "OnlineMultiplayer_CommonTypes.h"
+#include "Platforms/EOS/UserTypes.h"
 #include "ConnectSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogConnectSubsystem, Log, All);
@@ -38,11 +38,11 @@ private:
 	void OnLogoutComplete();
 
 public:
-	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FOnlineUserMap)> Callback);
+	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FUsersMap)> Callback);
 
 private:
 	static void EOS_CALL OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);
-	TFunction<void(FOnlineUserMap)> GetUserInfoCallback;
+	TFunction<void(FUsersMap)> GetUserInfoCallback;
 	
 	void CreateNewUser();
 	void CheckAccounts();
@@ -55,7 +55,10 @@ private:
 	EOS_ContinuanceToken EosContinuanceToken;
 
 	UPROPERTY()
-	class UUserStateSubsystem* UserState;
+	class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY()
-	class UUserSubsystem* UserSubsystem;
+	class UOnlineUserSubsystem* OnlineUserSubsystem;
+
+	UPROPERTY()
+	ULocalUser* LocalUser;
 };

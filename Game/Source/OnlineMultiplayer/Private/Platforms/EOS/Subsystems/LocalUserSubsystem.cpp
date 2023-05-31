@@ -9,6 +9,7 @@
 ULocalUserSubsystem::ULocalUserSubsystem()
 {
 	EosManager = FEosManager::Get();
+	LocalUser = MakeUnique<FLocalUser>();
 }
 
 void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)

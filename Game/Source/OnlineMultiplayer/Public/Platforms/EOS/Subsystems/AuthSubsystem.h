@@ -45,9 +45,7 @@ private:
 	EOS_HAuth AuthHandle;
 	EOS_ProductUserId EosProductUserId;
 	EOS_ContinuanceToken EosContinuanceToken;
-
+	
 	UPROPERTY()
-	class UUserStateSubsystem* UserState;
-	UPROPERTY()
-	class UUserSubsystem* UserSubsystem;
+	class ULocalUserSubsystem* LocalUserSubsystem;
 };

@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "OnlineMultiplayer_CommonTypes.h"
+#include "Platforms/EOS/UserTypes.h"
 #include "LobbySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLobbySubsystem, Log, All);
@@ -13,7 +13,7 @@ inline DEFINE_LOG_CATEGORY(LogLobbySubsystem);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCreateLobbyCompleteDelegate, const bool, bSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJoinLobbyCompleteDelegate, const bool, bSuccess);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const FOnlineUser, OnlineUser);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const UUser*, OnlineUser);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserLeftDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserDisconnectedDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserKickedDelegate);
@@ -61,8 +61,11 @@ private:
 	EOS_HLobbySearch LobbySearchByUserIDHandle;
 	EOS_NotificationId OnLobbyMemberStatusUpdateID;
 
-	UPROPERTY()
-	class UUserStateSubsystem* LocalUserState;
+	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
+	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
+	UPROPERTY() class ULocalUser* LocalUser;
+	
+	
 
 	// Determines whether the user is still in the lobby after loading their data.
 	TArray<EOS_ProductUserId> UsersToLoad;

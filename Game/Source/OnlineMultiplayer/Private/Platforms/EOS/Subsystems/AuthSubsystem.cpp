@@ -1,7 +1,7 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Platforms/EOS/Subsystems/AuthSubsystem.h"
-#include "Platforms/EOS/Subsystems/UserSubsystem.h"
+#include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_auth.h"
 #include "UserStateSubsystem.h"
@@ -13,8 +13,7 @@ void UAuthSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	// Make sure the local user state subsystem is initialized.
-	UserState = Collection.InitializeDependency<UUserStateSubsystem>();
-	UserSubsystem = Collection.InitializeDependency<UUserSubsystem>();
+	LocalUserSubsystem = Collection.InitializeDependency<ULocalUserSubsystem>();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
@@ -31,7 +30,7 @@ void UAuthSubsystem::Login()
 	// TODO: Also check if user is already logged in. Would prevent api call.
 	if(!AuthHandle) return;
 	
-	UserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
+	LocalUserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
 	{
 		EOS_Auth_Credentials Credentials;
 		Credentials.ApiVersion = EOS_AUTH_CREDENTIALS_API_LATEST;
