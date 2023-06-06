@@ -1,9 +1,9 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Platforms/EOS/Subsystems/SessionSubsystem.h"
+#include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_sessions.h"
-#include "UserStateSubsystem.h"
 
 
 
@@ -12,7 +12,7 @@ void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	// Make sure the local user state subsystem is initialized.
-	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
+	LocalUserSubsystem = Collection.InitializeDependency<ULocalUserSubsystem>();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
@@ -26,14 +26,12 @@ void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 void USessionSubsystem::CreateSession()
 {
-	if(!LocalUserState) return;
-	
 	EOS_Sessions_CreateSessionModificationOptions CreateSessionOptions = {};
 	CreateSessionOptions.ApiVersion = EOS_SESSIONS_CREATESESSIONMODIFICATION_API_LATEST;
 	CreateSessionOptions.SessionName = "MySession";
 	CreateSessionOptions.BucketId = "GameMode:Region:MapName";
 	CreateSessionOptions.MaxPlayers = 8;
-	CreateSessionOptions.LocalUserId = LocalUserState->GetProductUserID();
+	CreateSessionOptions.LocalUserId = LocalUserSubsystem->GetLocalUser()->GetProductUserID();
 	CreateSessionOptions.bPresenceEnabled = true;
 	CreateSessionOptions.bSanctionsEnabled = false;
 	

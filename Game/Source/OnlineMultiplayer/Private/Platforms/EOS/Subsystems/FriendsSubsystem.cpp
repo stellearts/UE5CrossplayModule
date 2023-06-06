@@ -1,8 +1,8 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Platforms/EOS/Subsystems/FriendsSubsystem.h"
+#include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
-#include "UserStateSubsystem.h"
 
 
 void UFriendsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -10,7 +10,7 @@ void UFriendsSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 
 	// Make sure the local user state subsystem is initialized.
-	LocalUserState = Collection.InitializeDependency<UUserStateSubsystem>();
+	LocalUserSubsystem = Collection.InitializeDependency<ULocalUserSubsystem>();
 
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();

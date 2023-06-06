@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "OnlineMultiplayer_CommonTypes.h"
 #include "AuthSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogAuthSubsystem, Log, All);

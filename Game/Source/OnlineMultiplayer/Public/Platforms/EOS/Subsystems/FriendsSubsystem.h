@@ -30,5 +30,5 @@ private:
 	EOS_HFriends FriendsHandle;
 	
 	UPROPERTY()
-	class UUserStateSubsystem* LocalUserState;
+	class ULocalUserSubsystem* LocalUserSubsystem;
 };

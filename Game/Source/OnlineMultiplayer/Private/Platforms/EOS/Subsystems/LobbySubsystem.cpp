@@ -4,12 +4,17 @@
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_lobby.h"
 #include "Platforms/Steam/Subsystems/SteamLobbySubsystem.h"
-#include "UserStateSubsystem.h"
 #include "Platforms/EOS/UserTypes.h"
 #include "Platforms/EOS/Subsystems/ConnectSubsystem.h"
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/Subsystems/OnlineUserSubsystem.h"
 
+
+
+ULobbySubsystem::ULobbySubsystem() : EosManager(&FEosManager::Get())
+{
+	
+}
 
 void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -23,7 +28,6 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// TODO: Maybe use preprocessor directives for platform specific code.
 	SteamLobbySubsystem = Collection.InitializeDependency<USteamLobbySubsystem>();
 	
-	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle) return;
 	LobbyHandle = EOS_Platform_GetLobbyInterface(PlatformHandle);
@@ -301,24 +305,23 @@ void ULobbySubsystem::OnLobbyUserJoined(const EOS_ProductUserId TargetUserID)
 	// Get the user info and store it in the connected users list.
 	UConnectSubsystem* ConnectSubsystem = GetGameInstance()->GetSubsystem<UConnectSubsystem>();
 	TArray<EOS_ProductUserId> UserIDs = {TargetUserID};
-	ConnectSubsystem->GetUserInfo(UserIDs, [this, TargetUserID](FUsersMap OnlineUsersMapResult)
+	ConnectSubsystem->GetUserInfo(UserIDs, [this, TargetUserID](FEosUserMap EosUsersMapResult)
 	{
-		UUser* OnlineUser = nullptr;
-		if(OnlineUsersMapResult.IsEmpty() || !OnlineUsersMapResult[0])
+		FEosUserPtr EosUser = TStrongObjectPtr(NewObject<UEosUser>());
+		if(EosUsersMapResult.IsEmpty() || !EosUsersMapResult[0])
 		{
-			OnlineUser = NewObject<UUser>();
 			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to get user info for user that joined the lobby"));
-			OnlineUser->SetDisplayName("Unknown");
-			OnlineUser->SetProductUserID(TargetUserID);
+			EosUser->SetDisplayName("Unknown");
+			EosUser->SetProductUserID(TargetUserID);
 		}
-		else OnlineUser = OnlineUsersMapResult[0]; // Get first user in the map since we only requested one for user.
+		else EosUser = EosUsersMapResult[0]; // Get first user in the map since we only requested one for user.
 
 		UOnlineUserSubsystem* OnlineUserSubsystem = GetGameInstance()->GetSubsystem<UOnlineUserSubsystem>();
-		OnlineUserSubsystem->AddUser(OnlineUser, Lobby);
+		OnlineUserSubsystem->CacheEosUser(EosUser, Lobby);
 
 		if(UsersToLoad.Find(TargetUserID) != INDEX_NONE)
 		{
-			OnLobbyUserJoinedDelegate.Broadcast(OnlineUser);
+			OnLobbyUserJoinedDelegate.Broadcast(EosUser.Get());
 		}
 		else UE_LOG(LogLobbySubsystem, Warning, TEXT("User left before we could load their data. Delegate will not be broadcasted."));
 	});

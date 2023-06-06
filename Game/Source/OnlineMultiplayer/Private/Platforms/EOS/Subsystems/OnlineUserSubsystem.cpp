@@ -7,9 +7,10 @@
 
 
 
-UOnlineUserSubsystem::UOnlineUserSubsystem()
+UOnlineUserSubsystem::UOnlineUserSubsystem() : SteamManager(&FSteamManager::Get()), EosManager(&FEosManager::Get())
 {
 }
+
 
 void UOnlineUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -21,22 +22,57 @@ void UOnlineUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 
 /**
- * Returns a user containing online user info from the specified map type.
+ * Returns a friend from the user's platform and also from Epic if logged into the auth-interface.
  *
- * @param ProductUserID The EOS-Product-User-ID of the user to get.
+ * @param PlatformUserID The Platform User ID of the user to get.
+ */
+FPlatformUserPtr UOnlineUserSubsystem::GetPlatformFriend(const std::string& PlatformUserID)
+{
+	FPlatformUserPtr* FoundUser = PlatformFriendList.Find(FString(PlatformUserID.c_str()));
+	return FoundUser ? *FoundUser : nullptr;
+}
+
+
+/**
+ * Tries to cache the given user.
+ *
+ * @param UserToStore The Platform-User to store.
+ */
+bool UOnlineUserSubsystem::CachePlatformFriend(const FPlatformUserPtr& UserToStore)
+{
+	if(!UserToStore)
+	{
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User provided."));
+		return false;
+	}
+
+	const std::string PlatformUserID = UserToStore->GetPlatformID();
+	if(!PlatformUserID.length())
+	{
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Provided User is missing its PlatformUserID"));
+		return false;
+	}
+
+	PlatformFriendList.Add(FString(PlatformUserID.c_str()), UserToStore);
+	return true;
+}
+
+
+// --------------------------------
+
+
+/**
+ * Returns a user containing eos user info from the specified map type.
+ *
+ * @param ProductUserID The EOS Product User ID of the user to get.
  * @param UsersMapType The list where to get the user from.
  */
-UUser* UOnlineUserSubsystem::GetUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType)
+FEosUserPtr UOnlineUserSubsystem::GetEosUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType)
 {
-	// Double pointer since the .Find method returns a pointer to the value inside, which is also a pointer.
-	// This is needed so that I can share the same user instance between multiple maps and keep them the same.
-	UUser** FoundUser = nullptr;
+	// FoundUser is a double pointer since the .Find method returns a pointer to the value inside.
+	FEosUserPtr* FoundUser = nullptr;
 	switch (UsersMapType)
 	{
-	case Friends:
-		FoundUser = FriendsList.Find(ProductUserID);
-		break;
-
 	case Lobby:
 		FoundUser = LobbyUserList.Find(ProductUserID);
 		break;
@@ -55,33 +91,56 @@ UUser* UOnlineUserSubsystem::GetUser(const EOS_ProductUserId ProductUserID, cons
 
 
 /**
- * Tries to store the given user in the given map type.
+ * Returns a the user list of the given type.
+ * 
+ * @param UsersMapType The list where to get the users from.
+ */
+FEosUserMap UOnlineUserSubsystem::GetEosUserList(const EUsersMapType UsersMapType)
+{
+	switch (UsersMapType)
+	{
+	case Lobby:
+		return LobbyUserList;
+
+	case Session:
+		return SessionUserList;
+
+	default:
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid UsersMapType provided."));
+		return FEosUserMap();
+	}
+}
+
+
+/**
+ * Tries to cache the given user in the given map type.
  *
- * @param UserToStore The user to store.
+ * @param UserToStore The EOS-User to store.
  * @param UsersMapType The list where to store the user in.
  */
-bool UOnlineUserSubsystem::AddUser(UUser* UserToStore, const EUsersMapType UsersMapType)
+bool UOnlineUserSubsystem::CacheEosUser(const FEosUserPtr& UserToStore, const EUsersMapType UsersMapType)
 {
 	if(!UserToStore)
 	{
 		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User provided."));
 		return false;
 	}
-
-	// TODO: This method would be incompatible with users from the SteamUsersMap and other platforms only since they wont have an EOS_ProductUserId.
-	const EOS_ProductUserId ProductUserId = UserToStore->GetProductUserID();
+	
+	const EOS_ProductUserId ProductUserID = UserToStore->GetProductUserID();
+	if(!ProductUserID)
+	{
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Provided User is missing its ProductUserID"));
+		return false;
+	}
+	
 	switch (UsersMapType)
 	{
-	case Friends:
-		FriendsList.Add(ProductUserId, UserToStore);
-		break;
-
 	case Lobby:
-		LobbyUserList.Add(ProductUserId, UserToStore);
+		LobbyUserList.Add(ProductUserID, UserToStore);
 		break;
 
 	case Session:
-		SessionUserList.Add(ProductUserId, UserToStore);
+		SessionUserList.Add(ProductUserID, UserToStore);
 		break;
 
 	default:

@@ -4,7 +4,6 @@
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_auth.h"
-#include "UserStateSubsystem.h"
 
 
 
@@ -30,7 +29,7 @@ void UAuthSubsystem::Login()
 	// TODO: Also check if user is already logged in. Would prevent api call.
 	if(!AuthHandle) return;
 	
-	LocalUserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
+	LocalUserSubsystem->RequestSteamSessionTicket([this](const std::string& TicketString)
 	{
 		EOS_Auth_Credentials Credentials;
 		Credentials.ApiVersion = EOS_AUTH_CREDENTIALS_API_LATEST;
@@ -51,19 +50,18 @@ void UAuthSubsystem::OnLoginComplete(const EOS_Auth_LoginCallbackInfo* Data)
 {
 	UAuthSubsystem* AuthSubsystem = static_cast<UAuthSubsystem*>(Data->ClientData);
 	if(!AuthSubsystem) return;
-	UUserStateSubsystem* UserState = AuthSubsystem->UserState;
-	if(!UserState) return;
+	const ULocalUserSubsystem* LocalUserSubsystem = AuthSubsystem->LocalUserSubsystem;
 	
 	if(Data->ResultCode == EOS_EResult::EOS_Success)
 	{
 		// Login was successful. We can now use the Auth interface.
-		UserState->SetEpicAccountId(Data->LocalUserId);
+		LocalUserSubsystem->GetLocalUser()->SetEpicAccountID(Data->LocalUserId);
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_Auth_ExternalAuthNotLinked ||
 			Data->ResultCode == EOS_EResult::EOS_InvalidUser)
 	{
 		// Open the login overlay. The user can now login with their Epic account, or create a new one.
-		UserState->SetContinuanceToken(Data->ContinuanceToken);
+		LocalUserSubsystem->GetLocalUser()->SetContinuanceToken(Data->ContinuanceToken);
 		AuthSubsystem->LinkUserAuth();
 	}
 	else
@@ -86,13 +84,11 @@ void UAuthSubsystem::OnLogoutComplete()
 
 void UAuthSubsystem::LinkUserAuth()
 {
-	if(!UserState) return;
-	
 	EOS_Auth_LinkAccountOptions Options;
 	Options.ApiVersion = EOS_AUTH_LINKACCOUNT_API_LATEST;
 	Options.LinkAccountFlags = EOS_ELinkAccountFlags::EOS_LA_NoFlags;
 	Options.LocalUserId = nullptr;
-	Options.ContinuanceToken = UserState->GetContinuanceToken();
+	Options.ContinuanceToken = LocalUserSubsystem->GetLocalUser()->GetContinuanceToken();
 	
 	EOS_Auth_LinkAccount(AuthHandle, &Options, this, [](const EOS_Auth_LinkAccountCallbackInfo* Data)
 	{

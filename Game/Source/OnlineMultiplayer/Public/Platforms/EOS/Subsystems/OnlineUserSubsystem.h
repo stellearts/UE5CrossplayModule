@@ -13,7 +13,6 @@ inline DEFINE_LOG_CATEGORY(LogOnlineUserSubsystem);
 UENUM()
 enum EUsersMapType : uint8
 {
-	Friends	UMETA(DisplayName="Friends"),
 	Lobby UMETA(DisplayName="Lobby"),
 	Session	UMETA(DisplayName="Session")
 };
@@ -35,19 +34,25 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 private:
-	class FSteamManager& SteamManager;
-	class FEosManager& EosManager;
+	class FSteamManager* SteamManager;
+	class FEosManager* EosManager;
 	UPROPERTY() class USteamUserSubsystem* SteamUserSubsystem;
 
 	// Online User Maps.
-	FUsersMap FriendsList; // TODO: Separate platform friends list? Separate map for each platform and finding based on that platforms user id?
-	FUsersMap LobbyUserList;
-	FUsersMap SessionUserList;
+	FPlatformUserMap PlatformFriendList;
+	FEosUserMap LobbyUserList;
+	FEosUserMap SessionUserList;
 	
 
 public:
-	UUser* GetUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType);
-	bool AddUser(UUser* UserToStore, const EUsersMapType UsersMapType);
+	// TODO: For when logged into auth-subsystem, get epic friends instead of platform, and vice versa when not.
+	FPlatformUserPtr GetPlatformFriend(const std::string& PlatformUserID);
+	FORCEINLINE FPlatformUserMap GetPlatformFriendList() { return PlatformFriendList; }
+	bool CachePlatformFriend(const FPlatformUserPtr& UserToStore);
+	
+	FEosUserPtr GetEosUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType);
+	FEosUserMap GetEosUserList(const EUsersMapType UsersMapType);
+	bool CacheEosUser(const FEosUserPtr& UserToStore, const EUsersMapType UsersMapType);
 
 
 	

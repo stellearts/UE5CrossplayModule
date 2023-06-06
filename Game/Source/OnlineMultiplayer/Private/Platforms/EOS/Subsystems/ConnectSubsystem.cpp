@@ -2,9 +2,9 @@
 
 #include "Platforms/EOS/Subsystems/ConnectSubsystem.h"
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
+#include "Platforms/EOS/Subsystems/OnlineUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_connect.h"
-#include "UserStateSubsystem.h"
 
 
 
@@ -35,7 +35,7 @@ void UConnectSubsystem::Login()
 	if(!ConnectHandle) return;
 
 	// TODO: Change to more generic name like GetLoginToken or something which will then call the correct function, depending on the platform. For steam: GetSteamSessionTicket.
-	LocalUserSubsystem->RequestSteamSessionTicket([this](std::string TicketString)
+	LocalUserSubsystem->RequestSteamSessionTicket([this](const std::string& TicketString)
 	{
 		EOS_Connect_Credentials Credentials;
 		Credentials.ApiVersion = EOS_CONNECT_CREDENTIALS_API_LATEST;
@@ -157,7 +157,7 @@ void UConnectSubsystem::CheckAccounts()
 struct FGetUserInfoCallbackData
 {
 	UConnectSubsystem* ConnectSubsystem;
-	UUserStateSubsystem* UserStateSubsystem;
+	ULocalUserSubsystem* LocalUserSubsystem;
 	TArray<EOS_ProductUserId> UserIDs;
 };
 
@@ -168,7 +168,7 @@ struct FGetUserInfoCallbackData
  * @param UserIDs Product-User-IDs array to get the external accounts info for.
  * @param Callback The callback to call upon completion, returning FOnlineUserMap.
  */
-void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FUsersMap)> Callback)
+void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FEosUserMap)> Callback)
 {
 	// Data we need in the OnGetProductUserExternalAccountInfoComplete
 	const TUniquePtr<FGetUserInfoCallbackData> CallbackData = MakeUnique<FGetUserInfoCallbackData>();
@@ -193,12 +193,12 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 	if (Data->ResultCode != EOS_EResult::EOS_Success)
 	{
 		UE_LOG(LogConnectSubsystem, Error, TEXT("EOS_Connect_QueryProductUserIdMappings failed with error code: [%d]"), Data->ResultCode);
-		ConnectSubsystem->GetUserInfoCallback(FUsersMap());
+		ConnectSubsystem->GetUserInfoCallback(FEosUserMap());
 		return;
 	}
 	
 	const TArray<EOS_ProductUserId>& UserIDs = CallbackData->UserIDs;
-	FUsersMap OnlineUsers = {}; // To pass to the callback.
+	FEosUserMap OnlineUsers;
 	
 	// Iterate over all the users we requested info for.
 	for(int32_t UserIndex = 0; UserIndex < UserIDs.Num(); UserIndex++)
@@ -257,19 +257,19 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 		UE_LOG(LogTemp, Warning, TEXT("Most recent platform: %d"), MostRecentPlatform);
 
 		// Make the OnlineUser struct and add it to the OnlineUsers map.
-		UUser* OnlineUser = NewObject<UUser>();
-		OnlineUser->Initialize(
+		FEosUserPtr EosUser = TStrongObjectPtr(NewObject<UEosUser>());
+		EosUser->Initialize(
 			TargetUserID,
-			'', // TODO: Check if the user has epic external account and set this ID if so.
+			nullptr, // TODO: Check if the user has epic external account and set this ID if so.
 			ExternalAccounts,
 			MostRecentPlatform,
 			ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].AccountID : "",
 			ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].DisplayName : "Unknown"
 		);
-		OnlineUsers.Add(TargetUserID, OnlineUser);
+		OnlineUsers.Add(TargetUserID, EosUser);
 		
 		// Load avatar from the user's platform.
-		if(OnlineUser->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
+		if(EosUser->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
 		{
 			// TODO: this.
 			// ConnectSubsystem->UserSubsystem->GetUserAvatar(OnlineUser.PlatformID); // TODO: Create this function which then checks the platform.
@@ -278,5 +278,5 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 	}
 	
 	ConnectSubsystem->GetUserInfoCallback(OnlineUsers);
-	ConnectSubsystem->GetUserInfoCallback = TFunction<void(FUsersMap)>(); // Clear the callback.
+	ConnectSubsystem->GetUserInfoCallback = TFunction<void(FEosUserMap)>(); // Clear the callback.
 }

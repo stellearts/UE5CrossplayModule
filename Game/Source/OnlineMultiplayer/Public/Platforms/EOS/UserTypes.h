@@ -8,7 +8,10 @@
 
 
 
-// These are the external account types that EOS supports->
+
+// TODO: UUser class for platform specific. UEosUser : UUser for online users. ULocalUser : UEosUser for some extra local functionality.
+
+// These are the external account types that EOS supports
 struct FExternalAccount {
 	EOS_ProductUserId ProductUserID;
 	std::string DisplayName;
@@ -19,8 +22,56 @@ struct FExternalAccount {
 typedef TMap<EOS_EExternalAccountType, FExternalAccount> FExternalAccountsMap;
 
 
+
+/**
+ * The platform user contains the data that any platform can supply, such as getting the username or avatar of a Steam or PSN user, and should be used for the friends on the users platform.
+ */
 UCLASS(BlueprintType)
-class UUser : public UObject
+class UPlatformUser : public UObject
+{
+	GENERATED_BODY()
+
+	struct FPlatformUserState
+	{
+		std::string DisplayName;
+		std::string PlatformUserID;
+		std::string AvatarURL;
+	};
+
+protected:
+	FPlatformUserState* PlatformUserState;
+
+public:
+	void Initialize(const std::string& InPlatformUserID, const std::string& InDisplayName)
+	{
+		PlatformUserState->PlatformUserID = InPlatformUserID;
+		PlatformUserState->DisplayName = InDisplayName;
+	}
+	
+	// Getters
+	FORCEINLINE std::string GetPlatformID() const { return PlatformUserState->PlatformUserID; }
+	FORCEINLINE std::string GetDisplayName() const { return PlatformUserState->DisplayName; }
+	FORCEINLINE std::string GetAvatarURL() const { return PlatformUserState->AvatarURL; }
+
+	// Setters
+	FORCEINLINE void SetPlatformID(const std::string PlatformUserID) { PlatformUserState->PlatformUserID = PlatformUserID; }
+	FORCEINLINE void SetDisplayName(const std::string DisplayName) { PlatformUserState->DisplayName = DisplayName; }
+	FORCEINLINE void SetAvatarURL(const std::string AvatarURL) { PlatformUserState->AvatarURL = AvatarURL; }
+};
+typedef TStrongObjectPtr<UPlatformUser> FPlatformUserPtr;
+
+// For storing platform users.
+typedef TMap<FString, FPlatformUserPtr> FPlatformUserMap; // FString because std::string is not a natively supported key type for UE or something.
+
+
+
+/**
+ * Represents an online user which has the extra properties we need to do matchmaking.
+ *
+ * Users joining a lobby/session will join with their EOS-product-user-ID and we can use that to fetch some data and create this user.
+ */
+UCLASS(BlueprintType)
+class UEosUser : public UPlatformUser
 {
 	GENERATED_BODY()
 	
@@ -30,9 +81,6 @@ class UUser : public UObject
 		EOS_EpicAccountId EpicAccountID;
 		FExternalAccountsMap ExternalAccounts;
 		EOS_EExternalAccountType Platform;
-		std::string PlatformID;
-		std::string DisplayName;
-		std::string AvatarURL;
 	};
 
 protected:
@@ -44,43 +92,40 @@ public:
 			const EOS_EpicAccountId& InEpicAccountID,
 			const FExternalAccountsMap& InExternalAccounts,
 			const EOS_EExternalAccountType& InPlatform,
-			const std::string& InPlatformID,
+			const std::string& InPlatformUserID,
 			const std::string& InDisplayName)
 	{
 		UserState->ProductUserID = InProductUserID;
 		UserState->EpicAccountID = InEpicAccountID;
 		UserState->ExternalAccounts = InExternalAccounts;
 		UserState->Platform = InPlatform;
-		UserState->PlatformID = InPlatformID;
-		UserState->DisplayName = InDisplayName;
+		PlatformUserState->PlatformUserID = InPlatformUserID;
+		PlatformUserState->DisplayName = InDisplayName;
 	}
-	
 	
 	// Getters
 	FORCEINLINE EOS_ProductUserId GetProductUserID() const { return UserState->ProductUserID; }
 	FORCEINLINE EOS_EpicAccountId GetEpicAccountID() const { return UserState->EpicAccountID; }
 	FORCEINLINE EOS_EExternalAccountType GetPlatform() const { return UserState->Platform; }
-	FORCEINLINE std::string GetPlatformID() const { return UserState->PlatformID; }
-	FORCEINLINE std::string GetDisplayName() const { return UserState->DisplayName; }
-	FORCEINLINE std::string GetAvatarURL() const { return UserState->AvatarURL; }
 
 	// Setters
 	FORCEINLINE void SetProductUserID(const EOS_ProductUserId ProductUserId) { UserState->ProductUserID = ProductUserId; }
 	FORCEINLINE void SetEpicAccountID(const EOS_EpicAccountId EpicAccountId) { UserState->EpicAccountID = EpicAccountId; }
 	FORCEINLINE void SetPlatform(const EOS_EExternalAccountType PlatformType) { UserState->Platform = PlatformType; }
-	FORCEINLINE void SetPlatformID(const std::string PlatformID) { UserState->PlatformID = PlatformID; }
-	FORCEINLINE void SetDisplayName(const std::string DisplayName) { UserState->DisplayName = DisplayName; }
-	FORCEINLINE void SetAvatarURL(const std::string AvatarURL) { UserState->AvatarURL = AvatarURL; }
 };
-// Use this map to store a list of users that can be found using the ProductUserID->
-typedef TMap<EOS_ProductUserId, TStrongObjectPtr<UUser>> FUsersMap;
-// TODO: FUsersMap to EOSUsersMap and maps for each platform? FSteamUsersMap, psn, etc.
+typedef TStrongObjectPtr<UEosUser> FEosUserPtr;
+
+// For storing online users.
+typedef TMap<EOS_ProductUserId, FEosUserPtr> FEosUserMap;
+// TODO: To remove an item from the list, first call the '.Reset();' on the strongobjectptr, and then remove it from the list. Otherwise memory leak.
 
 
 
-// Local User class that handles the information for a local user->
+/**
+ * The local user is an EOS user with some extra data and helper methods.
+ */
 UCLASS(BlueprintType)
-class ULocalUser final : public UUser
+class ULocalUser final : public UEosUser
 {
 	GENERATED_BODY()
 	
@@ -93,8 +138,6 @@ class ULocalUser final : public UUser
 	FLocalUserState* LocalUserState;
 	
 public:
-	ULocalUser() = default;
-	
 	// Getters
 	FORCEINLINE std::string GetLobbyID() const { return LocalUserState->LobbyID; }
 	FORCEINLINE uint64 GetShadowLobbyID() const { return LocalUserState->ShadowLobbyID; }

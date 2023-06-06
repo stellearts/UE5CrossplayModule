@@ -10,8 +10,7 @@
 #pragma warning(pop)
 
 #include "Platforms/EOS/Subsystems/LobbySubsystem.h"
-#include "UserStateSubsystem.h"
-
+#include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 
 
 void USteamLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -34,10 +33,10 @@ void USteamLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
  */
 void USteamLobbySubsystem::CreateShadowLobby()
 {
-	const UUserStateSubsystem* LocalUserState = GetGameInstance()->GetSubsystem<UUserStateSubsystem>();
-	if(!LocalUserState) return;
+	const ULocalUserSubsystem* LocalUserSubsystem = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>();
+	if(!LocalUserSubsystem) return;
 
-	if(!LocalUserState->IsInLobby())
+	if(!LocalUserSubsystem->GetLocalUser()->IsInLobby())
 	{
 		UE_LOG(LogSteamLobbySubsystem, Warning, TEXT("Not in an EOS-Lobby. Cannot create Shadow-Lobby without being in an EOS-Lobby."));
 		return;
@@ -49,16 +48,16 @@ void USteamLobbySubsystem::CreateShadowLobby()
 
 void USteamLobbySubsystem::OnCreateShadowLobbyComplete(LobbyCreated_t* Data, bool bIOFailure)
 {
-	UUserStateSubsystem* LocalUserState = GetGameInstance()->GetSubsystem<UUserStateSubsystem>();
-	if(!LocalUserState) return;
-	LocalUserState->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to create lobby.
+	const ULocalUserSubsystem* LocalUserSubsystem = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>();
+	if(!LocalUserSubsystem) return;
+	LocalUserSubsystem->GetLocalUser()->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to create lobby.
 	
 	if(Data->m_eResult == k_EResultOK)
 	{
 		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Shadow-Lobby created!"));
 		
 		// Set the lobby data to include the EOS lobby ID. This will allow Steam users to join the EOS lobby through the shadow lobby.
-		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", LocalUserState->GetLobbyID());
+		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", LocalUserSubsystem->GetLocalUser()->GetLobbyID().c_str());
 	}
 	else
 	{
@@ -94,17 +93,17 @@ void USteamLobbySubsystem::JoinShadowLobby(uint64 SteamLobbyID)
 
 void USteamLobbySubsystem::OnJoinShadowLobbyComplete(LobbyEnter_t* Data, bool bIOFailure)
 {
-	UUserStateSubsystem* LocalUserState = GetGameInstance()->GetSubsystem<UUserStateSubsystem>();
+	const ULocalUserSubsystem* LocalUserSubsystem = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>();
 	ULobbySubsystem* LobbySubsystem = GetGameInstance()->GetSubsystem<ULobbySubsystem>();
-	if(!LocalUserState || !LobbySubsystem) return;
-	LocalUserState->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to join.
+	if(!LocalUserSubsystem || !LobbySubsystem) return;
+	LocalUserSubsystem->GetLocalUser()->SetShadowLobbyID(Data->m_ulSteamIDLobby); // 0 if failed to join.
 	
 	if(Data->m_EChatRoomEnterResponse == k_EChatRoomEnterResponseSuccess)
 	{
 		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Shadow-Lobby joined!"));
 
 		// Join the EOS lobby if the user is not already in the EOS lobby.
-		if(!LocalUserState->IsInLobby())
+		if(!LocalUserSubsystem->GetLocalUser()->IsInLobby())
 		{
 			const char* EosLobbyID = SteamMatchmaking()->GetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID");
 			LobbySubsystem->JoinLobbyByID(EosLobbyID);

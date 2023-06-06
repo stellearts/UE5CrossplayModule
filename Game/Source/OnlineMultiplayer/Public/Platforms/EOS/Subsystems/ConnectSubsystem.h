@@ -38,11 +38,11 @@ private:
 	void OnLogoutComplete();
 
 public:
-	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FUsersMap)> Callback);
+	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FEosUserMap)> Callback);
 
 private:
 	static void EOS_CALL OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);
-	TFunction<void(FUsersMap)> GetUserInfoCallback;
+	TFunction<void(FEosUserMap)> GetUserInfoCallback;
 	
 	void CreateNewUser();
 	void CheckAccounts();

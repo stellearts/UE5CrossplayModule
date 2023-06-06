@@ -6,17 +6,16 @@
 #include "Platforms/Steam/Subsystems/SteamUserSubsystem.h"
 
 
-ULocalUserSubsystem::ULocalUserSubsystem()
+ULocalUserSubsystem::ULocalUserSubsystem() : SteamManager(&FSteamManager::Get()), EosManager(&FEosManager::Get())
 {
-	EosManager = FEosManager::Get();
-	LocalUser = MakeUnique<FLocalUser>();
+	LocalUser = NewObject<ULocalUser>();
 }
 
 void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	
-	const EOS_HPlatform PlatformHandle = EosManager.GetPlatformHandle();
+	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle) return;
 	// TODO: EOS user interface or something if it exists at all.
 

@@ -28,13 +28,13 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 private:
-	class FSteamManager& SteamManager;
-	class FEosManager& EosManager;
+	class FSteamManager* SteamManager;
+	class FEosManager* EosManager;
 	UPROPERTY() class USteamUserSubsystem* SteamUserSubsystem;
-	TUniquePtr<ULocalUser> LocalUser;
+	UPROPERTY() ULocalUser* LocalUser;
 
 public:
-	FORCEINLINE ULocalUser* GetLocalUser() const { return LocalUser.Get(); }
+	FORCEINLINE ULocalUser* GetLocalUser() const { return LocalUser; }
 
 
 	
