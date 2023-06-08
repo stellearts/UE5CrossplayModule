@@ -546,7 +546,7 @@ struct GameLobbyJoinRequested_t
 	// On PS3, the friend will be invalid if this was triggered by a PSN invite via the XMB, but
 	// the account type will be console user so you can tell at least that this was from a PSN friend
 	// rather than a Steam friend.
-	CSteamID m_steamIDFriend;		
+	CSteamID m_steamIDFriend;
 };
 
 

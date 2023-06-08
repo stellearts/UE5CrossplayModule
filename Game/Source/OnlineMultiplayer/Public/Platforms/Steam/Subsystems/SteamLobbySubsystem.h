@@ -38,7 +38,7 @@ public:
 	void CreateShadowLobby();
 	FOnCreateShadowLobbyCompleteDelegate OnCreateShadowLobbyCompleteDelegate;
 	
-	void JoinShadowLobby(uint64 SteamLobbyID);
+	void JoinShadowLobby(const uint64 SteamLobbyID);
 	FOnJoinShadowLobbyCompleteDelegate OnJoinShadowLobbyCompleteDelegate;
 	
 	FOnUserJoinShadowLobbyDelegate OnUserJoinSteamLobbyDelegate;
@@ -54,4 +54,7 @@ private:
 	STEAM_CALLBACK(USteamLobbySubsystem, OnLobbyDataUpdateComplete, LobbyDataUpdate_t);
 	STEAM_CALLBACK(USteamLobbySubsystem, OnJoinShadowLobbyRequest, GameLobbyJoinRequested_t);
 	STEAM_CALLBACK(USteamLobbySubsystem, OnJoinRichPresenceRequest, GameRichPresenceJoinRequested_t);
+
+	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
+	UPROPERTY() class ULobbySubsystem* LobbySubsystem;
 };

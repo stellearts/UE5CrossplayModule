@@ -39,24 +39,24 @@ class UPlatformUser : public UObject
 	};
 
 protected:
-	FPlatformUserState* PlatformUserState;
+	FPlatformUserState PlatformUserState;
 
 public:
 	void Initialize(const std::string& InPlatformUserID, const std::string& InDisplayName)
 	{
-		PlatformUserState->PlatformUserID = InPlatformUserID;
-		PlatformUserState->DisplayName = InDisplayName;
+		PlatformUserState.PlatformUserID = InPlatformUserID;
+		PlatformUserState.DisplayName = InDisplayName;
 	}
 	
 	// Getters
-	FORCEINLINE std::string GetPlatformID() const { return PlatformUserState->PlatformUserID; }
-	FORCEINLINE std::string GetDisplayName() const { return PlatformUserState->DisplayName; }
-	FORCEINLINE std::string GetAvatarURL() const { return PlatformUserState->AvatarURL; }
+	FORCEINLINE std::string GetPlatformID() const { return PlatformUserState.PlatformUserID; }
+	FORCEINLINE std::string GetDisplayName() const { return PlatformUserState.DisplayName; }
+	FORCEINLINE std::string GetAvatarURL() const { return PlatformUserState.AvatarURL; }
 
 	// Setters
-	FORCEINLINE void SetPlatformID(const std::string PlatformUserID) { PlatformUserState->PlatformUserID = PlatformUserID; }
-	FORCEINLINE void SetDisplayName(const std::string DisplayName) { PlatformUserState->DisplayName = DisplayName; }
-	FORCEINLINE void SetAvatarURL(const std::string AvatarURL) { PlatformUserState->AvatarURL = AvatarURL; }
+	FORCEINLINE void SetPlatformID(const std::string PlatformUserID) { PlatformUserState.PlatformUserID = PlatformUserID; }
+	FORCEINLINE void SetDisplayName(const std::string DisplayName) { PlatformUserState.DisplayName = DisplayName; }
+	FORCEINLINE void SetAvatarURL(const std::string AvatarURL) { PlatformUserState.AvatarURL = AvatarURL; }
 };
 typedef TStrongObjectPtr<UPlatformUser> FPlatformUserPtr;
 
@@ -84,7 +84,7 @@ class UEosUser : public UPlatformUser
 	};
 
 protected:
-	FUserState* UserState;
+	FUserState UserState;
 	
 public:
 	void Initialize(
@@ -95,23 +95,23 @@ public:
 			const std::string& InPlatformUserID,
 			const std::string& InDisplayName)
 	{
-		UserState->ProductUserID = InProductUserID;
-		UserState->EpicAccountID = InEpicAccountID;
-		UserState->ExternalAccounts = InExternalAccounts;
-		UserState->Platform = InPlatform;
-		PlatformUserState->PlatformUserID = InPlatformUserID;
-		PlatformUserState->DisplayName = InDisplayName;
+		UserState.ProductUserID = InProductUserID;
+		UserState.EpicAccountID = InEpicAccountID;
+		UserState.ExternalAccounts = InExternalAccounts;
+		UserState.Platform = InPlatform;
+		PlatformUserState.PlatformUserID = InPlatformUserID;
+		PlatformUserState.DisplayName = InDisplayName;
 	}
 	
 	// Getters
-	FORCEINLINE EOS_ProductUserId GetProductUserID() const { return UserState->ProductUserID; }
-	FORCEINLINE EOS_EpicAccountId GetEpicAccountID() const { return UserState->EpicAccountID; }
-	FORCEINLINE EOS_EExternalAccountType GetPlatform() const { return UserState->Platform; }
+	FORCEINLINE EOS_ProductUserId GetProductUserID() const { return UserState.ProductUserID; }
+	FORCEINLINE EOS_EpicAccountId GetEpicAccountID() const { return UserState.EpicAccountID; }
+	FORCEINLINE EOS_EExternalAccountType GetPlatform() const { return UserState.Platform; }
 
 	// Setters
-	FORCEINLINE void SetProductUserID(const EOS_ProductUserId ProductUserId) { UserState->ProductUserID = ProductUserId; }
-	FORCEINLINE void SetEpicAccountID(const EOS_EpicAccountId EpicAccountId) { UserState->EpicAccountID = EpicAccountId; }
-	FORCEINLINE void SetPlatform(const EOS_EExternalAccountType PlatformType) { UserState->Platform = PlatformType; }
+	FORCEINLINE void SetProductUserID(const EOS_ProductUserId ProductUserId) { UserState.ProductUserID = ProductUserId; }
+	FORCEINLINE void SetEpicAccountID(const EOS_EpicAccountId EpicAccountId) { UserState.EpicAccountID = EpicAccountId; }
+	FORCEINLINE void SetPlatform(const EOS_EExternalAccountType PlatformType) { UserState.Platform = PlatformType; }
 };
 typedef TStrongObjectPtr<UEosUser> FEosUserPtr;
 
@@ -135,22 +135,22 @@ class ULocalUser final : public UEosUser
 		uint64 ShadowLobbyID = 0;
 		EOS_ContinuanceToken ContinuanceToken;
 	};
-	FLocalUserState* LocalUserState;
+	FLocalUserState LocalUserState;
 	
 public:
 	// Getters
-	FORCEINLINE std::string GetLobbyID() const { return LocalUserState->LobbyID; }
-	FORCEINLINE uint64 GetShadowLobbyID() const { return LocalUserState->ShadowLobbyID; }
-	FORCEINLINE EOS_ContinuanceToken GetContinuanceToken() const { return LocalUserState->ContinuanceToken; }
+	FORCEINLINE std::string GetLobbyID() const { return LocalUserState.LobbyID; }
+	FORCEINLINE uint64 GetShadowLobbyID() const { return LocalUserState.ShadowLobbyID; }
+	FORCEINLINE EOS_ContinuanceToken GetContinuanceToken() const { return LocalUserState.ContinuanceToken; }
 
 	// Setters
-	FORCEINLINE void SetContinuanceToken(const EOS_ContinuanceToken& InContinuanceToken) { LocalUserState->ContinuanceToken = InContinuanceToken; }
-	FORCEINLINE void SetLobbyID(const std::string& InLobbyID) { LocalUserState->LobbyID = InLobbyID; }
-	FORCEINLINE void SetShadowLobbyID(const uint64 InShadowLobbyID) { LocalUserState->ShadowLobbyID = InShadowLobbyID; }
+	FORCEINLINE void SetContinuanceToken(const EOS_ContinuanceToken& InContinuanceToken) { LocalUserState.ContinuanceToken = InContinuanceToken; }
+	FORCEINLINE void SetLobbyID(const std::string& InLobbyID) { LocalUserState.LobbyID = InLobbyID; }
+	FORCEINLINE void SetShadowLobbyID(const uint64 InShadowLobbyID) { LocalUserState.ShadowLobbyID = InShadowLobbyID; }
 
 	// Helper functions to make the code more readable
-	FORCEINLINE bool IsAuthLoggedIn() const { return EOS_EpicAccountId_IsValid(UserState->EpicAccountID) == EOS_TRUE; }
-	FORCEINLINE bool IsConnectLoggedIn() const { return EOS_ProductUserId_IsValid(UserState->ProductUserID) == EOS_TRUE; }
-	FORCEINLINE bool IsInLobby() const { return !LocalUserState->LobbyID.empty(); }
-	FORCEINLINE bool IsInShadowLobby() const { return LocalUserState->ShadowLobbyID != 0; }
+	FORCEINLINE bool IsAuthLoggedIn() const { return EOS_EpicAccountId_IsValid(UserState.EpicAccountID) == EOS_TRUE; }
+	FORCEINLINE bool IsConnectLoggedIn() const { return EOS_ProductUserId_IsValid(UserState.ProductUserID) == EOS_TRUE; }
+	FORCEINLINE bool IsInLobby() const { return !LocalUserState.LobbyID.empty(); }
+	FORCEINLINE bool IsInShadowLobby() const { return LocalUserState.ShadowLobbyID != 0; }
 };

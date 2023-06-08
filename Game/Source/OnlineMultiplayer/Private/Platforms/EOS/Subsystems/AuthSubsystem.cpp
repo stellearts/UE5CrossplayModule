@@ -40,7 +40,7 @@ void UAuthSubsystem::Login()
 		EOS_Auth_LoginOptions Options;
 		Options.ApiVersion = EOS_AUTH_LOGIN_API_LATEST;
 		Options.Credentials = &Credentials;
-		Options.ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_Presence;
+		Options.ScopeFlags = EOS_EAuthScopeFlags::EOS_AS_BasicProfile | EOS_EAuthScopeFlags::EOS_AS_FriendsList | EOS_EAuthScopeFlags::EOS_AS_Presence; // This is checked using bitwise operation. Which is why the enums are multiple of 2.
 	
 		EOS_Auth_Login(AuthHandle, &Options, this, OnLoginComplete);
 	});
