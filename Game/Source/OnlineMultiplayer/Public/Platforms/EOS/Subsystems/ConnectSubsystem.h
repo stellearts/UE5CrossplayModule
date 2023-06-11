@@ -10,6 +10,8 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogConnectSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogConnectSubsystem);
 
+DECLARE_DYNAMIC_DELEGATE_TwoParams(FOnConnectLoginCompleteDelegate, const bool, bSuccess, UEosUser*, LocalUser);
+
 
 
 /**
@@ -38,11 +40,11 @@ private:
 	void OnLogoutComplete();
 
 public:
-	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FEosUserMap)> Callback);
+	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> Callback);
 
 private:
 	static void EOS_CALL OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);
-	TFunction<void(FEosUserMap)> GetUserInfoCallback;
+	TFunction<void(TMap<FString, UEosUser*>)> GetUserInfoCallback;
 	
 	void CreateNewUser();
 	void CheckAccounts();
@@ -61,4 +63,7 @@ private:
 
 	UPROPERTY()
 	ULocalUser* LocalUser;
+
+public:
+	FOnConnectLoginCompleteDelegate OnConnectLoginCompleteDelegate;
 };

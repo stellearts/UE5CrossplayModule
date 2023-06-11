@@ -61,11 +61,17 @@ void UConnectSubsystem::OnLoginComplete(const EOS_Connect_LoginCallbackInfo* Dat
 {
 	UConnectSubsystem* ConnectSubsystem = static_cast<UConnectSubsystem*>(Data->ClientData);
 	ULocalUser* LocalUser = ConnectSubsystem->LocalUserSubsystem->GetLocalUser();
+	if (!LocalUser)
+	{
+		UE_LOG(LogConnectSubsystem, Error, TEXT("LocalUser is null."));
+		return;
+	}
 	
 	if (Data->ResultCode == EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogConnectSubsystem, Log, TEXT("Logged into Connect-Interface."))
+		UE_LOG(LogConnectSubsystem, Log, TEXT("Logged in to Connect-Interface."))
 		LocalUser->SetProductUserID(Data->LocalUserId);
+		ConnectSubsystem->OnConnectLoginCompleteDelegate.ExecuteIfBound(true, LocalUser);
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_InvalidUser)
 	{
@@ -75,7 +81,8 @@ void UConnectSubsystem::OnLoginComplete(const EOS_Connect_LoginCallbackInfo* Dat
 	}
 	else
 	{
-		UE_LOG(LogConnectSubsystem, Error, TEXT("LoginConnect failed with error code %d"), Data->ResultCode);
+		UE_LOG(LogConnectSubsystem, Error, TEXT("LoginConnect failed with error code %hs"), EOS_EResult_ToString(Data->ResultCode));
+		ConnectSubsystem->OnConnectLoginCompleteDelegate.ExecuteIfBound(false, nullptr);
 	}
 }
 
@@ -109,7 +116,8 @@ void UConnectSubsystem::CreateNewUser()
 		}
 		else
 		{
-			UE_LOG(LogConnectSubsystem, Error, TEXT("CreateUser failed with error code %d"), Data->ResultCode);
+			UE_LOG(LogConnectSubsystem, Error, TEXT("CreateUser failed with error code %hs"), EOS_EResult_ToString(Data->ResultCode));
+			ConnectSubsystem->OnConnectLoginCompleteDelegate.ExecuteIfBound(false, nullptr);
 		}
 	});
 }
@@ -127,7 +135,7 @@ void UConnectSubsystem::CheckAccounts()
 	{
 		if(Data->ResultCode != EOS_EResult::EOS_Success)
 		{
-			UE_LOG(LogConnectSubsystem, Error, TEXT("QueryProductUserIdMappings failed with error code %d"), Data->ResultCode);
+			UE_LOG(LogConnectSubsystem, Error, TEXT("QueryProductUserIdMappings failed with error code %hs"), EOS_EResult_ToString(Data->ResultCode));
 			return;
 		}
 		
@@ -169,7 +177,7 @@ struct FGetUserInfoCallbackData
  * @param UserIDs Product-User-IDs array to get the external accounts info for.
  * @param Callback The callback to call upon completion, returning FOnlineUserMap.
  */
-void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(FEosUserMap)> Callback)
+void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> Callback)
 {
 	// Data we need in the OnGetProductUserExternalAccountInfoComplete
 	TUniquePtr<FGetUserInfoCallbackData> CallbackData = MakeUnique<FGetUserInfoCallbackData>(); // Call release to pass ownership to callback.
@@ -201,14 +209,14 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 	if (Data->ResultCode != EOS_EResult::EOS_Success)
 	{
 		UE_LOG(LogConnectSubsystem, Error, TEXT("EOS_Connect_QueryProductUserIdMappings failed with error code: [%d]"), Data->ResultCode);
-		ConnectSubsystem->GetUserInfoCallback(FEosUserMap());
-		delete CallbackData; // Clear from heap.
+		ConnectSubsystem->GetUserInfoCallback(TMap<FString, UEosUser*>());
+		delete CallbackData; // Clear from heap. // TODO: Check if necessary with unique ptr.
 		return;
 	}
 	
 	// Iterate over all the users we requested info for.
 	// Update each user with their info and store them in a map.
-	FEosUserMap OnlineUsers;
+	TMap<FString, UEosUser*> OnlineUsers;
 	for(int32_t UserIndex = 0; UserIndex < UserIDs.Num(); UserIndex++)
 	{
 		const EOS_ProductUserId TargetUserID = UserIDs[UserIndex];
@@ -216,6 +224,7 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 		ExternalAccountCountOptions.ApiVersion = EOS_CONNECT_GETPRODUCTUSEREXTERNALACCOUNTCOUNT_API_LATEST;
 		ExternalAccountCountOptions.TargetUserId = TargetUserID;
 
+		// Get the number of ExternalAccounts of this user.
 		FExternalAccountsMap ExternalAccounts;
 		const int32_t AccountCount = EOS_Connect_GetProductUserExternalAccountCount(ConnectSubsystem->ConnectHandle, &ExternalAccountCountOptions);
 
@@ -227,6 +236,7 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 			CopyOptions.TargetUserId = TargetUserID;
 			CopyOptions.ExternalAccountInfoIndex = AccountIndex;
 
+			// Get the ExternalAccount data.
 			EOS_Connect_ExternalAccountInfo* EOS_AccountInfo;
 			const EOS_EResult Result = EOS_Connect_CopyProductUserExternalAccountByIndex(ConnectSubsystem->ConnectHandle, &CopyOptions, &EOS_AccountInfo);
 			
@@ -242,10 +252,9 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 				ExternalAccounts.Add(EOS_AccountInfo->AccountIdType, AccountInfo);
 			}
 			else
-			{
-				UE_LOG(LogConnectSubsystem, Error, TEXT("Failed to get external account info. Error code: %hs"), EOS_EResult_ToString(Result)); // Handle error.
-			}
+				UE_LOG(LogConnectSubsystem, Error, TEXT("Failed to get external account info. Error code: %hs"), EOS_EResult_ToString(Result));
 
+			// Release from memory.
 			EOS_Connect_ExternalAccountInfo_Release(EOS_AccountInfo);
 		}
 
@@ -265,7 +274,7 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 		UE_LOG(LogTemp, Warning, TEXT("Most recent platform: %d"), MostRecentPlatform);
 
 		// Make the OnlineUser struct and add it to the OnlineUsers map.
-		FEosUserPtr EosUser = TStrongObjectPtr(NewObject<UEosUser>());
+		UEosUser* EosUser = NewObject<UEosUser>();
 		EosUser->Initialize(
 			TargetUserID,
 			nullptr, // TODO: Check if the user has epic external account and set this ID if so.
@@ -274,20 +283,15 @@ void UConnectSubsystem::OnGetUserInfoComplete(const EOS_Connect_QueryProductUser
 			ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].AccountID : "",
 			ExternalAccounts.Contains(MostRecentPlatform) ? ExternalAccounts[MostRecentPlatform].DisplayName : "Unknown"
 		);
-		OnlineUsers.Add(TargetUserID, EosUser);
+		OnlineUsers.Add(EosIDToString(TargetUserID), EosUser);
 
 		
 		// TODO: Method call to onlineusersubsystem getuseravatar or something. And the callback will then continue this function? If it fails, load basic profile picture.
-		// Load avatar from the user's platform.
-		if(EosUser->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
-		{
-			// TODO: this.
-			// ConnectSubsystem->UserSubsystem->GetUserAvatar(OnlineUser.PlatformID); // TODO: Create this function which then checks the platform.
-		}
-		// TODO: Other platforms eventually.
+		// Fetch the user's avatar
+		// OnlineUserSubsystem->FetchAvatar();
 	}
 
 	// TODO: Move to above callback result.
 	ConnectSubsystem->GetUserInfoCallback(OnlineUsers);
-	ConnectSubsystem->GetUserInfoCallback = TFunction<void(FEosUserMap)>(); // Clear the callback.
+	ConnectSubsystem->GetUserInfoCallback = TFunction<void(TMap<FString, UEosUser*>)>(); // Clear the callback.
 }

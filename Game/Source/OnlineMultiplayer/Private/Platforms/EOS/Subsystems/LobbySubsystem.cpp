@@ -1,13 +1,13 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Platforms/EOS/Subsystems/LobbySubsystem.h"
-#include "Platforms/EOS/EOSManager.h"
-#include "eos_lobby.h"
 #include "Platforms/Steam/Subsystems/SteamLobbySubsystem.h"
+#include "Platforms/EOS/EOSManager.h"
 #include "Platforms/EOS/UserTypes.h"
 #include "Platforms/EOS/Subsystems/ConnectSubsystem.h"
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/Subsystems/OnlineUserSubsystem.h"
+#include "eos_lobby.h"
 
 
 
@@ -333,22 +333,25 @@ void ULobbySubsystem::OnLobbyUserJoined(const EOS_ProductUserId TargetUserID)
 	// Get the user info, cache it, and then broadcast the delegate containing this new user.
 	UConnectSubsystem* ConnectSubsystem = GetGameInstance()->GetSubsystem<UConnectSubsystem>();
 	TArray<EOS_ProductUserId> UserIDs = {TargetUserID};
-	ConnectSubsystem->GetUserInfo(UserIDs, [this, TargetUserID](FEosUserMap EosUsersMapResult)
+	ConnectSubsystem->GetUserInfo(UserIDs, [this, TargetUserID](TMap<FString, UEosUser*> EosUsersMapResult)
 	{
-		FEosUserPtr EosUser = TStrongObjectPtr(NewObject<UEosUser>());
-		if(EosUsersMapResult.Num() == 0 || !EosUsersMapResult.Contains(TargetUserID))
+		FString TargetUserIDString = EosIDToString(TargetUserID);
+		UEosUser* EosUser;
+		if(EosUsersMapResult.Num() == 0 || !EosUsersMapResult.Contains(TargetUserIDString))
 		{
-			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to get user info for user that joined the lobby"));
-			EosUser->SetDisplayName("Unknown");
+			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to get the user's info for user that joined the lobby."));
+			EosUser = NewObject<UEosUser>();
+			EosUser->SetUsername("Unknown");
 			EosUser->SetProductUserID(TargetUserID);
 		}
-		else EosUser = *EosUsersMapResult.Find(TargetUserID);
+		else EosUser = *EosUsersMapResult.Find(TargetUserIDString);
 
+		// Check if user is still in lobby after this fetch.
 		if(UsersToLoad.Contains(TargetUserID))
 		{
 			UOnlineUserSubsystem* OnlineUserSubsystem = GetGameInstance()->GetSubsystem<UOnlineUserSubsystem>();
 			OnlineUserSubsystem->CacheEosUser(EosUser, Lobby);
-			OnLobbyUserJoinedDelegate.Broadcast(EosUser.Get());
+			OnLobbyUserJoinedDelegate.Broadcast(EosUser);
 		}
 		else UE_LOG(LogLobbySubsystem, Warning, TEXT("User left before we could load their data. Delegate will not be broadcasted."));
 	});
@@ -434,7 +437,7 @@ void ULobbySubsystem::AddShadowLobbyIdAttribute(const uint64 ShadowLobbyID)
     EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
     UpdateLobbyModificationOptions.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST;
 	UpdateLobbyModificationOptions.LocalUserId = LocalUser->GetProductUserID();
-    UpdateLobbyModificationOptions.LobbyId = LocalUser->GetLobbyID().c_str();
+    UpdateLobbyModificationOptions.LobbyId = TCHAR_TO_ANSI(*LocalUser->GetLobbyID());
 
 	// Create the lobby modification handle.
 	EOS_HLobbyModification LobbyModificationHandle;

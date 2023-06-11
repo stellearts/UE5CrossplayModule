@@ -59,7 +59,7 @@ void USteamLobbySubsystem::OnCreateShadowLobbyComplete(LobbyCreated_t* Data, boo
 		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Shadow-Lobby created."));
 		
 		// Set the lobby data to include the EOS lobby ID. This will allow Steam users to join the EOS lobby through the shadow lobby.
-		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", LocalUserSubsystem->GetLocalUser()->GetLobbyID().c_str());
+		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", TCHAR_TO_ANSI(*LocalUserSubsystem->GetLocalUser()->GetLobbyID()));
 	}
 	else
 	{

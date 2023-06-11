@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "Platforms/EOS/UserTypes.h"
-#include "eos_sdk.h"
 #include "OnlineUserSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogOnlineUserSubsystem, Log, All);
@@ -37,22 +36,25 @@ private:
 	class FSteamManager* SteamManager;
 	class FEosManager* EosManager;
 	UPROPERTY() class USteamUserSubsystem* SteamUserSubsystem;
-
+	UPROPERTY() class USteamOnlineUserSubsystem* SteamOnlineUserSubsystem;
+	
 	// Online User Maps.
-	FPlatformUserMap PlatformFriendList;
-	FEosUserMap LobbyUserList;
-	FEosUserMap SessionUserList;
+	UPROPERTY() TMap<FString, UPlatformUser*> PlatformFriendList;
+	UPROPERTY() TMap<FString, UEosUser*> LobbyUserList;
+	UPROPERTY() TMap<FString, UEosUser*> SessionUserList;
 	
 
 public:
 	// TODO: For when logged into auth-subsystem, get epic friends instead of platform, and vice versa when not.
-	FPlatformUserPtr GetPlatformFriend(const std::string& PlatformUserID);
-	FORCEINLINE FPlatformUserMap GetPlatformFriendList() { return PlatformFriendList; }
-	bool CachePlatformFriend(const FPlatformUserPtr& UserToStore);
+	UPlatformUser* GetPlatformFriend(const FString& PlatformUserID);
+	FORCEINLINE TMap<FString, UPlatformUser*> GetPlatformFriendList() { return PlatformFriendList; }
+	bool CachePlatformFriend(const UPlatformUser* UserToStore);
 	
-	FEosUserPtr GetEosUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType);
-	FEosUserMap GetEosUserList(const EUsersMapType UsersMapType);
-	bool CacheEosUser(const FEosUserPtr& UserToStore, const EUsersMapType UsersMapType);
+	UEosUser* GetEosUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType);
+	TMap<FString, UEosUser*> GetEosUserList(const EUsersMapType UsersMapType);
+	bool CacheEosUser(UEosUser* UserToStore, const EUsersMapType UsersMapType);
+
+	void FetchAvatar(const UEosUser* User, const TFunction<void()>& Callback);
 
 
 	

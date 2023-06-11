@@ -9,6 +9,10 @@
 ULocalUserSubsystem::ULocalUserSubsystem() : SteamManager(&FSteamManager::Get()), EosManager(&FEosManager::Get())
 {
 	LocalUser = NewObject<ULocalUser>();
+
+	// TODO: Compatibility for other platforms. Set based on preprocessor directive?
+	// Set platform
+	LocalUser->SetPlatform(EOS_EExternalAccountType::EOS_EAT_STEAM);
 }
 
 void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -89,6 +93,12 @@ void ULocalUserSubsystem::RequestSteamSessionTicket(const TFunction<void(std::st
  */
 void ULocalUserSubsystem::OnSteamSessionTicketResponse(const TArray<uint8> Ticket)
 {
+	if(!SteamSessionTicketCallback)
+	{
+		UE_LOG(LogLocalUserSubsystem, Error, TEXT("No valid callback in OnSteamSessionTicketResponse"));
+		return;
+	}
+	
 	if (Ticket.Num() > 0)
 	{
 		char Buffer[1024] = "";
@@ -97,7 +107,7 @@ void ULocalUserSubsystem::OnSteamSessionTicketResponse(const TArray<uint8> Ticke
 		{
 			UE_LOG(LogLocalUserSubsystem, Error, TEXT("Failed to convert encrypted app ticket to string"));
 		}
-	
+
 		SteamSessionTicketCallback(Buffer);
 	}
 	else

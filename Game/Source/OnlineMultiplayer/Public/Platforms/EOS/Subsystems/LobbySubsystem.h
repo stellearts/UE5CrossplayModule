@@ -13,7 +13,7 @@ inline DEFINE_LOG_CATEGORY(LogLobbySubsystem);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCreateLobbyCompleteDelegate, const bool, bSuccess);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJoinLobbyCompleteDelegate, const bool, bSuccess);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const UEosUser*, EosUser);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, UEosUser*, EosUser);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserLeftDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserDisconnectedDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserKickedDelegate);

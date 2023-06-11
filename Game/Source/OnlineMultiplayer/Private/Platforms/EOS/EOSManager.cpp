@@ -20,20 +20,20 @@ static void EOS_CALL OnEosLogMessage(const EOS_LogMessage* Message)
 		switch (Message->Level)
 		{
 		case EOS_ELogLevel::EOS_LOG_Fatal:
-			UE_LOG(LogEOSSubsystem, Fatal, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
+			UE_LOG(LogEos, Fatal, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
 			break;
 		case EOS_ELogLevel::EOS_LOG_Error:
-			UE_LOG(LogEOSSubsystem, Error, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
+			UE_LOG(LogEos, Error, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
 			break;
 		case EOS_ELogLevel::EOS_LOG_Warning:
-			UE_LOG(LogEOSSubsystem, Warning, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
+			UE_LOG(LogEos, Warning, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
 			break;
 		case EOS_ELogLevel::EOS_LOG_Info:
-			UE_LOG(LogEOSSubsystem, Log, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
+			UE_LOG(LogEos, Log, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
 			break;
 		case EOS_ELogLevel::EOS_LOG_Verbose:
 		case EOS_ELogLevel::EOS_LOG_VeryVerbose:
-			UE_LOG(LogEOSSubsystem, Verbose, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
+			UE_LOG(LogEos, Verbose, TEXT("EOS [%hs]: %hs"), Message->Category, Message->Message);
 			break;
 		case EOS_ELogLevel::EOS_LOG_Off:
 		default:
@@ -103,10 +103,10 @@ void FEosManager::InitializeSdk()
 	const EOS_EResult InitResult = EOS_Initialize(&InitOptions);
 	if (InitResult != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to initialize EOS SDK: %s"), *FString(EOS_EResult_ToString(InitResult)));
+		UE_LOG(LogEos, Error, TEXT("Failed to initialize EOS SDK: %s"), *FString(EOS_EResult_ToString(InitResult)));
 		return;
 	}
-	UE_LOG(LogEOSSubsystem, Log, TEXT("EOS SDK initialized successfully"));
+	UE_LOG(LogEos, Log, TEXT("EOS SDK initialized successfully"));
 }
 
 /**
@@ -122,7 +122,7 @@ void FEosManager::InitializePlatform()
 	EOS_Platform_Options PlatformOptions = {};
 	if(CreateIntegratedPlatform(PlatformOptions) != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to create Integrated-Platform"));
+		UE_LOG(LogEos, Error, TEXT("Failed to create Integrated-Platform"));
 		return;
 	}
 
@@ -148,10 +148,10 @@ void FEosManager::InitializePlatform()
 	if (!PlatformHandle)
 	{
 		// Handle error
-		UE_LOG(LogEOSSubsystem, Error, TEXT("Failed to initialize EOS Platform"));
+		UE_LOG(LogEos, Error, TEXT("Failed to initialize EOS Platform"));
 		return;
 	}
-	UE_LOG(LogEOSSubsystem, Log, TEXT("EOS Platform initialized successfully"));
+	UE_LOG(LogEos, Log, TEXT("EOS Platform initialized successfully"));
 
 	// Release the temporary container.
 	FreeIntegratedPlatform(PlatformOptions);

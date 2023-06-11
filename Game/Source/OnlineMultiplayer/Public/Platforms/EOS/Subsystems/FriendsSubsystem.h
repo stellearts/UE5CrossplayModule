@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
+#include "Platforms/EOS/UserTypes.h"
 #include "FriendsSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFriendsSubsystem, Log, All);
@@ -23,12 +24,15 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
-	void InviteFriendToLobby();
+	UFUNCTION(BlueprintCallable)
+	TArray<UPlatformUser*> GetFriendList() const;
+	
+	void InviteToLobby();
 
 private:
 	class FEosManager* EosManager;
 	EOS_HFriends FriendsHandle;
-	
-	UPROPERTY()
-	class ULocalUserSubsystem* LocalUserSubsystem;
+
+	UPROPERTY() class USteamFriendsSubsystem* SteamFriendsSubsystem;
+	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 };

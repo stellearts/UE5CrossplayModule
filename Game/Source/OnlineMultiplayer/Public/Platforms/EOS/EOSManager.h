@@ -6,8 +6,8 @@
 #include "Tickable.h"
 #include "eos_sdk.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogEOSSubsystem, Log, All);
-inline DEFINE_LOG_CATEGORY(LogEOSSubsystem);
+DECLARE_LOG_CATEGORY_EXTERN(LogEos, Log, All);
+inline DEFINE_LOG_CATEGORY(LogEos);
 
 
 
