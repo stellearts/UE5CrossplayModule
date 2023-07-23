@@ -36,7 +36,7 @@ TArray<UPlatformUser*> USteamFriendsSubsystem::GetFriendList()
 		return OutFriendList;
 	}
 
-	// Loop through each friend and get their information. Add to the FriendList.
+	// Loop through each friend, get their information and add to the FriendList.
 	const int FriendCount = SteamFriends()->GetFriendCount( k_EFriendFlagImmediate );
 	TMap<FString, UPlatformUser*> SteamFriendsMap;
 	for(int i=0; i<FriendCount; ++i )
@@ -81,7 +81,7 @@ void USteamFriendsSubsystem::OnPersonaStateChange(PersonaStateChange_t* Data)
 	{
 		// Friend's Avatar has changed, update the image.
 		const int AvatarHandle = SteamFriends()->GetMediumFriendAvatar(SteamUserID);
-		if(AvatarHandle != 0) (*SteamUser)->SetAvatar(CreateTextureFromAvatar(AvatarHandle));
+		if(AvatarHandle != 0) (*SteamUser)->SetAvatar(CreateTextureFromAvatar(AvatarHandle)); // TODO: Crashed here with AvatarHandle=2 and SteamUser=NULL.
 	}
 }
 

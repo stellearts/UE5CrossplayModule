@@ -48,9 +48,9 @@ public:
 	}
 	
 	// Getters
-	UFUNCTION(BlueprintCallable) FORCEINLINE FString GetPlatformID() const { return PlatformUserState.PlatformUserID; }
-	UFUNCTION(BlueprintCallable) FORCEINLINE FString GetUsername() const { return PlatformUserState.DisplayName; }
-	UFUNCTION(BlueprintCallable) FORCEINLINE UTexture2D* GetAvatar() const { return PlatformUserState.Avatar; }
+	UFUNCTION(BlueprintCallable, Category = "User") FORCEINLINE FString GetPlatformID() const { return PlatformUserState.PlatformUserID; }
+	UFUNCTION(BlueprintCallable, Category = "User") FORCEINLINE FString GetUsername() const { return PlatformUserState.DisplayName; }
+	UFUNCTION(BlueprintCallable, Category = "User") FORCEINLINE UTexture2D* GetAvatar() const { return PlatformUserState.Avatar; }
 
 	// Setters
 	FORCEINLINE void SetPlatformID(const FString& PlatformUserID) { PlatformUserState.PlatformUserID = PlatformUserID; }
