@@ -13,7 +13,6 @@ UOnlineUserSubsystem::UOnlineUserSubsystem() : SteamManager(&FSteamManager::Get(
 {
 }
 
-
 void UOnlineUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
@@ -28,38 +27,24 @@ void UOnlineUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 /**
  * Returns a friend from the user's platform and also from Epic if logged into the auth-interface.
  *
- * @param PlatformUserID The Platform User ID of the user to get.
+ * @param PlatformUserID The Platform-User-ID of the user to get.
  */
-UPlatformUser* UOnlineUserSubsystem::GetPlatformFriend(const FString& PlatformUserID)
+UPlatformUser* UOnlineUserSubsystem::GetFriend(const FString& PlatformUserID)
 {
-	// FPlatformUserPtr* FoundUser = PlatformFriendList.Find(FString(PlatformUserID.c_str()));
-	// return FoundUser ? *FoundUser : nullptr;
-	return nullptr;
+	UPlatformUser** FoundUser = FriendList.Find(PlatformUserID);
+	return FoundUser ? *FoundUser : nullptr;
 }
 
 
 /**
- * Tries to cache the given user.
+ * Returns a session-member from the list if exists.
  *
- * @param UserToStore The Platform-User to store.
+ * @param ProductUserID The Product-User-ID of the member to find.
  */
-bool UOnlineUserSubsystem::CachePlatformFriend(const UPlatformUser* UserToStore)
+UEosUser* UOnlineUserSubsystem::GetSessionMember(const EOS_ProductUserId ProductUserID)
 {
-	if(!UserToStore)
-	{
-		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User provided."));
-		return false;
-	}
-
-	// const std::string PlatformUserID = UserToStore->GetPlatformID();
-	// if(!PlatformUserID.length())
-	// {
-	// 	UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Provided User is missing its PlatformUserID"));
-	// 	return false;
-	// }
-	//
-	// PlatformFriendList.Add(FString(PlatformUserID.c_str()), UserToStore);
-	return true;
+	UEosUser** FoundUser = SessionList.Find(FString(EosIDToString(ProductUserID)));
+	return FoundUser ? *FoundUser : nullptr;
 }
 
 
@@ -67,92 +52,48 @@ bool UOnlineUserSubsystem::CachePlatformFriend(const UPlatformUser* UserToStore)
 
 
 /**
- * Returns a user containing eos user info from the specified map type.
+ * Tries to store the given user in the friend-list.
  *
- * @param ProductUserID The EOS Product User ID of the user to get.
- * @param UsersMapType The list where to get the user from.
- */
-UEosUser* UOnlineUserSubsystem::GetEosUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType)
-{
-	// FoundUser is a double pointer since the .Find method returns a pointer to the value inside.
-	UEosUser** FoundUser = nullptr;
-	switch (UsersMapType)
-	{
-	case Lobby:
-		FoundUser = LobbyUserList.Find(EosIDToString(ProductUserID));
-		break;
-
-	case Session:
-		FoundUser = SessionUserList.Find(EosIDToString(ProductUserID));
-		break;
-
-	default:
-		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid UsersMapType provided."));
-		break;
-	}
-	
-	return FoundUser ? *FoundUser : nullptr;
-}
-
-
-/**
- * Returns a the user list of the given type.
- * 
- * @param UsersMapType The list where to get the users from.
- */
-TMap<FString, UEosUser*> UOnlineUserSubsystem::GetEosUserList(const EUsersMapType UsersMapType)
-{
-	switch (UsersMapType)
-	{
-	case Lobby:
-		return LobbyUserList;
-
-	case Session:
-		return SessionUserList;
-
-	default:
-		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid UsersMapType provided."));
-		return TMap<FString, UEosUser*>();
-	}
-}
-
-
-/**
- * Tries to cache the given user in the given map type.
+ * @param PlatformUser The Platform-User to store in the friend-list.
  *
- * @param UserToStore The EOS-User to store.
- * @param UsersMapType The list where to store the user in.
+ * @return boolean, true if successful
  */
-bool UOnlineUserSubsystem::CacheEosUser(UEosUser* UserToStore, const EUsersMapType UsersMapType)
+bool UOnlineUserSubsystem::StoreFriend(UPlatformUser* PlatformUser)
 {
-	if(!UserToStore)
+	if(!PlatformUser)
 	{
 		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User provided."));
 		return false;
 	}
 	
-	const FString ProductUserID = EosIDToString(UserToStore->GetProductUserID());
+	FriendList.Add(PlatformUser->GetPlatformID(), PlatformUser);
+	return true;
+}
+
+
+/**
+ * Tries to store the given EosUser in the session-list.
+ *
+ * @param EosUser The Eos-User to store in the session-list.
+ *
+ * @return boolean, true if successful
+ */
+bool UOnlineUserSubsystem::StoreSessionMember(UEosUser* EosUser)
+{
+	if(!EosUser)
+	{
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User provided."));
+		return false;
+	}
+	
+	const FString ProductUserID = EosIDToString(EosUser->GetProductUserID());
 	if(ProductUserID.IsEmpty())
 	{
 		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Provided User is missing its ProductUserID"));
 		return false;
 	}
 	
-	switch (UsersMapType)
-	{
-	case Lobby:
-		LobbyUserList.Add(ProductUserID, UserToStore);
-		break;
-
-	case Session:
-		SessionUserList.Add(ProductUserID, UserToStore);
-		break;
-
-	default:
-		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid UsersMapType provided."));
-		return false;
-	}
-
+	SessionList.Add(ProductUserID, EosUser);
 	return true;
 }
 
@@ -160,16 +101,49 @@ bool UOnlineUserSubsystem::CacheEosUser(UEosUser* UserToStore, const EUsersMapTy
 // --------------------------------
 
 
-void UOnlineUserSubsystem::FetchAvatar(const UEosUser* User, const TFunction<void()>& Callback)
+/**
+ * Tries to store the given list of user's in the friend-list.
+ *
+ * @param PlatformUsers The Platform-Users to store in the friend-list.
+ */
+bool UOnlineUserSubsystem::StoreFriends(TArray<UPlatformUser*> PlatformUsers)
 {
-	if(!User)
+	for (const auto PlatformUser : PlatformUsers)
 	{
-		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid user ptr given in UOnlineUserSubsystem::FetchAvatar"));
+		StoreFriend(PlatformUser);
+	}
+	return true;
+}
+
+
+/**
+ * Tries to store the given list of user's in the session-list.
+ *
+ * @param EosUsers The Eos-Users to store in the session-list.
+ */
+bool UOnlineUserSubsystem::StoreSessionMembers(TArray<UEosUser*> EosUsers)
+{
+	for (const auto EosUser : EosUsers)
+	{
+		StoreFriend(EosUser);
+	}
+	return true;
+}
+
+
+// -------------------------------- Utilities --------------------------------
+
+
+void UOnlineUserSubsystem::FetchAvatar(const FString& UserID, const EOS_EExternalAccountType PlatformType, const TFunction<void>& Callback) const
+{
+	if(UserID.IsEmpty())
+	{
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User-ID given in UOnlineUserSubsystem::FetchAvatar"));
 		return;
 	}
 
-	if(User->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
+	if(PlatformType == EOS_EExternalAccountType::EOS_EAT_STEAM)
 	{
-		// SteamOnlineUserSubsystem->FetchAvatar(User->GetPlatformID(), Callback);
+		SteamOnlineUserSubsystem->FetchAvatar(UserID, Callback);
 	}
 }

@@ -10,7 +10,7 @@
 #pragma warning(pop)
 
 #include "CoreMinimal.h"
-#include "Platforms/EOS/UserTypes.h"
+#include "UserTypes.h"
 #include "SteamFriendsSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamFriendsSubsystem, Log, All);
@@ -34,7 +34,7 @@ protected:
 public:
 	TArray<UPlatformUser*> GetFriendList();
 	
-	void InviteToLobby();
+	void InviteToLobby(const FString& LobbyID, const FString& UserID);
 
 private:
 	STEAM_CALLBACK(USteamFriendsSubsystem, OnPersonaStateChange, PersonaStateChange_t);

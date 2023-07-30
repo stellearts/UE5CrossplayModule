@@ -4,21 +4,56 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "Platforms/EOS/UserTypes.h"
+#include "UserTypes.h"
 #include "LobbySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLobbySubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogLobbySubsystem);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnCreateLobbyCompleteDelegate, const bool, bSuccess);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnJoinLobbyCompleteDelegate, const bool, bSuccess);
+
+
+UENUM(BlueprintType)
+enum class ELobbyResultCode : uint8
+{
+	Success UMETA(DisplayName = "No error."),
+	PresenceLobbyExists UMETA(DisplayName = "Presence lobby already exists."),
+	CreateFailure UMETA(DisplayName = "Failed to create lobby."),
+	JoinFailure UMETA(DisplayName = "Failed to join lobby."),
+	SearchFailure UMETA(DisplayName = "Failed to find lobby."),
+	EosFailure UMETA(DisplayName = "Some EOS functionality failed."),
+	Unknown UMETA(DisplayName = "Unkown error occurred."),
+};
+
+/*
+ * Struct for storing all the necessary lobby information.
+ */
+USTRUCT(BlueprintType)
+struct FLobbyDetails
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	FString LobbyId;
+
+	UPROPERTY(BlueprintReadOnly)
+	FString LobbyOwnerID;
+
+	UPROPERTY(BlueprintReadOnly)
+	TMap<FString, UEosUser*> MemberList;
+
+	UPROPERTY(BlueprintReadOnly)
+	int32 MaxMembers;
+};
+
+
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCreateLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, UEosUser*, EosUser);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserLeftDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserDisconnectedDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserKickedDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserPromotedDelegate);
-
 
 
 /**
@@ -36,6 +71,7 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
+	
 	UFUNCTION(BlueprintCallable, Category = "Online|Lobby")
 	void CreateLobby();
 	void JoinLobbyByID(const EOS_LobbyId LobbyID);
@@ -55,32 +91,13 @@ private:
 	void OnLobbyUserDisconnected(const EOS_ProductUserId TargetUserID);
 	void OnLobbyUserKicked(const EOS_ProductUserId TargetUserID);
 	void OnLobbyUserPromoted(const EOS_ProductUserId TargetUserID);
-	
-	class FEosManager* EosManager;
-	EOS_HLobby LobbyHandle;
-	EOS_HLobbySearch LobbySearchByLobbyIDHandle;
-	EOS_HLobbySearch LobbySearchByUserIDHandle;
-	EOS_NotificationId OnLobbyMemberStatusUpdateID;
-
-	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
-	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
-	UPROPERTY() ULocalUser* LocalUser;
-	
-	
-
-	// Determines whether the user is still in the lobby after loading their data.
-	TArray<EOS_ProductUserId> UsersToLoad;
 
 public:
-	// Delegates for other classes to bind to.
-	
-	// Create/Join Lobby delegates.
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	// Create / Join
 	FOnCreateLobbyCompleteDelegate OnCreateLobbyCompleteDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
 	FOnJoinLobbyCompleteDelegate OnJoinLobbyCompleteDelegate;
 	
-	// Lobby-User update delegates.
+	// Lobby User
 	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
 	FOnLobbyUserJoinedDelegate OnLobbyUserJoinedDelegate;
 	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
@@ -92,13 +109,35 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
 	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
 
+private:
+	class FEosManager* EosManager;
+	EOS_HLobby LobbyHandle;
+	EOS_HLobbySearch LobbySearchByLobbyIDHandle;
+	EOS_HLobbySearch LobbySearchByUserIDHandle;
+	EOS_NotificationId OnLobbyMemberStatusUpdateID;
+
+	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
+	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
+	UPROPERTY() ULocalUser* LocalUser;
 	
+	TArray<EOS_ProductUserId> UsersToLoad; // Used to check if user's have left after loading their data.
+	FLobbyDetails LobbyDetails; // Struct containing all the necessary data.
+
+public:
+	void LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess, const FString& ErrorCode)> OnCompleteCallback);
+	FORCEINLINE TMap<FString, UEosUser*> GetMemberMap() const {return LobbyDetails.MemberList;}
+	TArray<UEosUser*> GetMemberList() const;
+	UEosUser* GetMember(const EOS_ProductUserId ProductUserID);
+	void StoreMember(UEosUser* EosUser);
+	void StoreMembers(TArray<UEosUser*> &EosUsers);
+
+
 
 
 	
-	// ------------------------------- Shadow Lobby -------------------------------
-	 
-	
+	/*
+	 * Shadow lobby
+	 */
 	void CreateShadowLobby();
 	void OnCreateShadowLobbyComplete(const uint64 ShadowLobbyID);
 	
@@ -109,10 +148,8 @@ public:
 	static void OnAddShadowLobbyIdAttributeComplete(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
 
 private:
-	// Shadow Lobby delegate-handles for unbinding upon completion.
 	FDelegateHandle OnCreateShadowLobbyCompleteDelegateHandle;
 	FDelegateHandle OnJoinShadowLobbyCompleteDelegateHandle;
-
-	UPROPERTY()
-	class USteamLobbySubsystem* SteamLobbySubsystem;
+	
+	UPROPERTY() class USteamLobbySubsystem* SteamLobbySubsystem;
 };

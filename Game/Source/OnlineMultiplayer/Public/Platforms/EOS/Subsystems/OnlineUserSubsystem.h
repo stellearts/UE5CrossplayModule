@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Platforms/EOS/UserTypes.h"
+#include "UserTypes.h"
 #include "OnlineUserSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogOnlineUserSubsystem, Log, All);
@@ -19,7 +19,9 @@ enum EUsersMapType : uint8
 
 
 /**
- * Subsystem for managing the user.
+ * Subsystem for managing user's from the friend, lobby or session lists.
+ *
+ * Provides helper functions for getting certain user data.
  */
 UCLASS(BlueprintType)
 class ONLINEMULTIPLAYER_API UOnlineUserSubsystem : public UGameInstanceSubsystem
@@ -35,28 +37,35 @@ protected:
 private:
 	class FSteamManager* SteamManager;
 	class FEosManager* EosManager;
-	UPROPERTY() class USteamUserSubsystem* SteamUserSubsystem;
+	UPROPERTY() class USteamLocalUserSubsystem* SteamLocalUserSubsystem;
 	UPROPERTY() class USteamOnlineUserSubsystem* SteamOnlineUserSubsystem;
 	
 	// Online User Maps.
-	UPROPERTY() TMap<FString, UPlatformUser*> PlatformFriendList;
-	UPROPERTY() TMap<FString, UEosUser*> LobbyUserList;
-	UPROPERTY() TMap<FString, UEosUser*> SessionUserList;
-	
+	UPROPERTY() TMap<FString, UPlatformUser*> FriendList;
+	UPROPERTY() TMap<FString, UEosUser*> SessionList;
 
 public:
 	// TODO: For when logged into auth-subsystem, get epic friends instead of platform, and vice versa when not.
-	UPlatformUser* GetPlatformFriend(const FString& PlatformUserID);
-	FORCEINLINE TMap<FString, UPlatformUser*> GetPlatformFriendList() { return PlatformFriendList; }
-	bool CachePlatformFriend(const UPlatformUser* UserToStore);
 	
-	UEosUser* GetEosUser(const EOS_ProductUserId ProductUserID, const EUsersMapType UsersMapType);
-	TMap<FString, UEosUser*> GetEosUserList(const EUsersMapType UsersMapType);
-	bool CacheEosUser(UEosUser* UserToStore, const EUsersMapType UsersMapType);
+	// Get single
+	UPlatformUser* GetFriend(const FString& PlatformUserID);
+	UEosUser* GetSessionMember(const EOS_ProductUserId ProductUserID);
+	
+	// Get all
+	FORCEINLINE TMap<FString, UPlatformUser*> GetFriendList() { return FriendList; }
+	FORCEINLINE TMap<FString, UEosUser*> GetSessionList() { return SessionList; }
 
-	void FetchAvatar(const UEosUser* User, const TFunction<void()>& Callback);
+	// Store single
+	bool StoreFriend(UPlatformUser* PlatformUser);
+	bool StoreSessionMember(UEosUser* EosUser);
+
+	// Store multiple
+	bool StoreFriends(TArray<UPlatformUser*> PlatformUsers);
+	bool StoreSessionMembers(TArray<UEosUser*> EosUsers);
 
 
 	
-	// ------------------------------- Online User Utilities -------------------------------
+	// --- Utilities ---
+	
+	void FetchAvatar(const FString& UserID, EOS_EExternalAccountType PlatformType, const TFunction<void>& Callback) const;
 };

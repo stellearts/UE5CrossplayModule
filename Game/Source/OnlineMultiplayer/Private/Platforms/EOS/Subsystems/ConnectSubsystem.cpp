@@ -177,7 +177,7 @@ struct FGetUserInfoCallbackData
  * @param UserIDs Product-User-IDs array to get the external accounts info for.
  * @param Callback The callback to call upon completion, returning FOnlineUserMap.
  */
-void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> Callback)
+void UConnectSubsystem::GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> &Callback)
 {
 	// Data we need in the OnGetProductUserExternalAccountInfoComplete
 	TUniquePtr<FGetUserInfoCallbackData> CallbackData = MakeUnique<FGetUserInfoCallbackData>(); // Call release to pass ownership to callback.

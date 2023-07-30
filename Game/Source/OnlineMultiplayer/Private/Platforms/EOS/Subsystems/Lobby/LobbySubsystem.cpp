@@ -1,9 +1,9 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "Platforms/EOS/Subsystems/LobbySubsystem.h"
+#include "Platforms/EOS/Subsystems/Lobby/LobbySubsystem.h"
 #include "Platforms/Steam/Subsystems/SteamLobbySubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
-#include "Platforms/EOS/UserTypes.h"
+#include "UserTypes.h"
 #include "Platforms/EOS/Subsystems/ConnectSubsystem.h"
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/Subsystems/OnlineUserSubsystem.h"
@@ -31,12 +31,14 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle) return;
 	LobbyHandle = EOS_Platform_GetLobbyInterface(PlatformHandle);
-
 	
 	// Register lobby member status update callback.
 	EOS_Lobby_AddNotifyLobbyMemberStatusReceivedOptions Options;
 	Options.ApiVersion = EOS_LOBBY_ADDNOTIFYLOBBYMEMBERSTATUSRECEIVED_API_LATEST;
 	OnLobbyMemberStatusUpdateID = EOS_Lobby_AddNotifyLobbyMemberStatusReceived(LobbyHandle, &Options, this, &ULobbySubsystem::OnLobbyMemberStatusUpdate);
+
+	// Check if we are already in a lobby (due to crash and rejoining)
+	JoinLobbyByUserID(LocalUser->GetProductUserID()); // TODO: pass callback.
 }
 
 
@@ -73,19 +75,14 @@ void ULobbySubsystem::CreateLobby()
 void ULobbySubsystem::OnCreateLobbyComplete(const EOS_Lobby_CreateLobbyCallbackInfo* Data)
 {
 	ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-	if(!LobbySubsystem) return;
 	ULocalUser* LocalUser = LobbySubsystem->LocalUser;
-	if(!LocalUser) return;
 	
 	if(Data->ResultCode == EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby created successfully"));
-		
 		LocalUser->SetLobbyID(Data->LobbyId);
-		LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(true);
-
-		// TODO: Add compatibility for other platforms. Currently only steam.
-		// Create a shadow lobby for platforms besides Epic to show the lobby for other players from the same platform.
+		LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success, LobbySubsystem->LobbyDetails);
+		
+		// Create a shadow lobby for platforms besides Epic to show the lobby for other players from the same platform
 		if(LocalUser->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
 		{
 			// Create a shadow lobby on steam. This will let Steam users join using the overlay.
@@ -94,14 +91,15 @@ void ULobbySubsystem::OnCreateLobbyComplete(const EOS_Lobby_CreateLobbyCallbackI
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_Lobby_PresenceLobbyExists)
 	{
-		// If for some reason the lobby already exists, due to a crash or something, we can just join it.
-		UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby already exists, joining instead..."));	
-		LobbySubsystem->JoinLobbyByUserID(LocalUser->GetProductUserID());
+		// If for some reason the lobby already exists, due to a crash or something, we can just join it
+		LocalUser->SetLobbyID(Data->LobbyId);
+		LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ELobbyResultCode::PresenceLobbyExists, LobbySubsystem->LobbyDetails);
+		// LobbySubsystem->JoinLobbyByUserID(LocalUser->GetProductUserID()); TODO: Do this check in bp on-failure. 
 	}
 	else
 	{
 		UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to create Lobby. Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
-		LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(false);
+		LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Unknown, LobbySubsystem->LobbyDetails);
 	}
 }
 
@@ -169,7 +167,7 @@ void ULobbySubsystem::JoinLobbyByUserID(const EOS_ProductUserId UserID)
 	if(EOS_Lobby_CreateLobbySearch(LobbyHandle, &LobbySearchOptions, &LobbySearchByUserIDHandle) != EOS_EResult::EOS_Success)
 	{
 		UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create lobby search handle."));
-		OnJoinLobbyCompleteDelegate.Broadcast(false);
+		OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::SearchFailure, LobbyDetails);
 		return;
 	}
 
@@ -206,17 +204,16 @@ void ULobbySubsystem::JoinLobbyByUserID(const EOS_ProductUserId UserID)
 			else
 			{
 				UE_LOG(LogLobbySubsystem, Warning, TEXT("EOS_LobbySearch_CopySearchResultByIndex Failed with Result Code: [%s]"), *FString(EOS_EResult_ToString(SearchResultCode)));
-				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(false);
+				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::SearchFailure, LobbySubsystem->LobbyDetails);
 			}
 		}
 		else
 		{
 			UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to find a lobby with Result Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
-			LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(false);
+			LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::SearchFailure, LobbySubsystem->LobbyDetails);
 		}
 	});
 }
-
 
 /**
  * Tries to join the lobby using the given handle.
@@ -237,34 +234,34 @@ void ULobbySubsystem::JoinLobbyByHandle(const EOS_HLobbyDetails LobbyDetailsHand
 
 void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data)
 {
-	// TODO: if from steam, join the shadow lobby. If steam lobby does not exist, create one.
-	// TODO: Also check if the steam lobby you try to join exist at all, maybe it was deleted because the only member left crashed and could not clear the attribute on the eos lobby.
-
-	const ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
+	ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
 	ULocalUser* LocalUser = LobbySubsystem->LocalUser;
-	
-	if(Data->ResultCode == EOS_EResult::EOS_Success)
-	{
-		UE_LOG(LogLobbySubsystem, Log, TEXT("Successfully joined lobby"));
-		
-		LocalUser->SetLobbyID(Data->LobbyId);
-		LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(true);
 
-		// TODO: Check if shadow lobby exist, if not create one.
-	}else if(Data->ResultCode == EOS_EResult::EOS_Lobby_LobbyAlreadyExists)
+	if(Data->ResultCode == EOS_EResult::EOS_Success || Data->ResultCode == EOS_EResult::EOS_Lobby_PresenceLobbyExists)
 	{
-		// I guess this means we are already in the lobby.
-		UE_LOG(LogLobbySubsystem, Log, TEXT("Already in lobby."));
-		
+		// Successfully joined the lobby, or we were already part of the lobby.
 		LocalUser->SetLobbyID(Data->LobbyId);
-		LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(true);
-		
-		// TODO: Check if shadow lobby exist, if not create one.
+
+		// Load the lobby-information.
+		LobbySubsystem->LoadLobbyDetails(Data->LobbyId, [LobbySubsystem](const bool bSuccess, const FString& ErrorCode)
+		{
+			if(bSuccess)
+			{
+				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success, LobbySubsystem->LobbyDetails);
+				// TODO: Check if shadow lobby exist, if not create one.
+			}
+			else
+			{
+				// TODO: Leave lobby? Why did this fail?
+				UE_LOG(LogLobbySubsystem, Error, TEXT("::LoadLobbyDetails failed in ::OnJoinLobbyComplete. Error: [%s]"), *ErrorCode);
+				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success, LobbySubsystem->LobbyDetails); // Change this ELobbyResultCode::JoinFailure to false if there is a case where this may fail, then also leave the lobby.
+			}
+		});
 	}
 	else
 	{
 		UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to join lobby. ResultCode: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
-		LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(false);
+		LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::JoinFailure, LobbySubsystem->LobbyDetails);
 	}
 }
 
@@ -335,11 +332,11 @@ void ULobbySubsystem::OnLobbyUserJoined(const EOS_ProductUserId TargetUserID)
 	TArray<EOS_ProductUserId> UserIDs = {TargetUserID};
 	ConnectSubsystem->GetUserInfo(UserIDs, [this, TargetUserID](TMap<FString, UEosUser*> EosUsersMapResult)
 	{
-		FString TargetUserIDString = EosIDToString(TargetUserID);
+		const FString TargetUserIDString = EosIDToString(TargetUserID);
 		UEosUser* EosUser;
 		if(EosUsersMapResult.Num() == 0 || !EosUsersMapResult.Contains(TargetUserIDString))
 		{
-			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to get the user's info for user that joined the lobby."));
+			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to get the info of the user that joined the lobby."));
 			EosUser = NewObject<UEosUser>();
 			EosUser->SetUsername("Unknown");
 			EosUser->SetProductUserID(TargetUserID);
@@ -350,7 +347,7 @@ void ULobbySubsystem::OnLobbyUserJoined(const EOS_ProductUserId TargetUserID)
 		if(UsersToLoad.Contains(TargetUserID))
 		{
 			UOnlineUserSubsystem* OnlineUserSubsystem = GetGameInstance()->GetSubsystem<UOnlineUserSubsystem>();
-			OnlineUserSubsystem->CacheEosUser(EosUser, Lobby);
+			StoreMember(EosUser);
 			OnLobbyUserJoinedDelegate.Broadcast(EosUser);
 		}
 		else UE_LOG(LogLobbySubsystem, Warning, TEXT("User left before we could load their data. Delegate will not be broadcasted."));
@@ -379,6 +376,146 @@ void ULobbySubsystem::OnLobbyUserPromoted(const EOS_ProductUserId TargetUserID)
 {
 	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been promoted to lobby owner"));
 	OnLobbyUserPromotedDelegate.Broadcast();
+}
+
+
+// --------------------------------------------
+
+
+/**
+ * Gets all the necessary information from a lobby and stores it in memory, this includes its members.
+ *
+ * @param LobbyID The ID of the lobby to get the details from.
+ * @param OnCompleteCallback Callback to call when the function completes.
+ */
+void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess, const FString& ErrorCode)> OnCompleteCallback)
+{
+	const EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions{
+		EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST,
+		LobbyID,
+		LocalUserSubsystem->GetLocalUser()->GetProductUserID()
+	};
+	EOS_HLobbyDetails LobbyDetailsHandle;
+	EOS_EResult Result = EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle);
+	
+	if(Result == EOS_EResult::EOS_Success)
+	{
+		// Successfully got the LobbyDetails-Handle
+		
+		// Get Lobby Info
+		constexpr EOS_LobbyDetails_CopyInfoOptions CopyInfoOptions{
+			EOS_LOBBYDETAILS_COPYINFO_API_LATEST
+		};
+		EOS_LobbyDetails_Info* LobbyInfo;
+		Result = EOS_LobbyDetails_CopyInfo(LobbyDetailsHandle, &CopyInfoOptions, &LobbyInfo);
+		if(Result == EOS_EResult::EOS_Success)
+		{
+			// Successfully got the LobbyDetails
+
+			// Store the details we need
+			LobbyDetails.LobbyId = LobbyInfo->LobbyId;
+			LobbyDetails.LobbyOwnerID = EosIDToString(LobbyInfo->LobbyOwnerUserId);
+			LobbyDetails.MaxMembers = LobbyInfo->MaxMembers;
+			
+			// Release the info to avoid memory leaks
+			EOS_LobbyDetails_Info_Release(LobbyInfo);
+			
+			// Get the Member Count
+			constexpr EOS_LobbyDetails_GetMemberCountOptions MemberCountOptions{
+				EOS_LOBBYDETAILS_GETMEMBERCOUNT_API_LATEST
+			};
+			const uint32_t MemberCount = EOS_LobbyDetails_GetMemberCount(LobbyDetailsHandle, &MemberCountOptions);
+
+			// Get the Members using the count
+			TArray<EOS_ProductUserId> MemberIDs;
+			for(uint32_t MemberIndex = 0; MemberIndex < MemberCount; MemberIndex++)
+			{
+				const EOS_LobbyDetails_GetMemberByIndexOptions MemberByIndexOptions{
+					EOS_LOBBYDETAILS_GETMEMBERBYINDEX_API_LATEST,
+					MemberIndex
+				};
+				const EOS_ProductUserId MemberID = EOS_LobbyDetails_GetMemberByIndex(LobbyDetailsHandle, &MemberByIndexOptions);
+				MemberIDs.Add(MemberID);
+			}
+			
+			// Get the user-information from all user's in the lobby
+			UConnectSubsystem* ConnectSubsystem = GetGameInstance()->GetSubsystem<UConnectSubsystem>();
+			ConnectSubsystem->GetUserInfo(MemberIDs, [this, OnCompleteCallback](const TMap<FString, UEosUser*> &UserMapResult)
+			{
+				LobbyDetails.MemberList = UserMapResult;
+				// TODO: Check if members have left before we could load their data.
+
+				// Done loading data.
+				OnCompleteCallback(true, FString(""));
+			});
+		}
+		else
+		{
+			EOS_LobbyDetails_Info_Release(LobbyInfo);
+			OnCompleteCallback(false, FString("Error when calling EOS_LobbyDetails_CopyInfo in ::LoadLobbyDetails"));
+		}
+	}
+	else
+	{
+		OnCompleteCallback(false, FString("Error when calling EOS_Lobby_CopyLobbyDetailsHandle in ::LoadLobbyDetails"));
+	}
+}
+
+/**
+ * Returns an array of current members in the lobby.
+ */
+TArray<UEosUser*> ULobbySubsystem::GetMemberList() const
+{
+	TArray<UEosUser*> OutMembers;
+	LobbyDetails.MemberList.GenerateValueArray(OutMembers);
+	return OutMembers;
+}
+
+/**
+ * Returns a lobby-member of given ProductUserID if in lobby.
+ *
+ * @param ProductUserID The Product-User-ID of the member to find.
+ */
+UEosUser* ULobbySubsystem::GetMember(const EOS_ProductUserId ProductUserID)
+{
+	UEosUser** FoundUser = LobbyDetails.MemberList.Find(FString(EosIDToString(ProductUserID)));
+	return FoundUser ? *FoundUser : nullptr;
+}
+
+/**
+ * Tries to store the given EosUser in the member-list.
+ *
+ * @param EosUser The Eos-User to store in the member-list.
+ */
+void ULobbySubsystem::StoreMember(UEosUser* EosUser)
+{
+	if(!EosUser)
+	{
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User provided."));
+		return;
+	}
+	
+	const FString ProductUserID = EosIDToString(EosUser->GetProductUserID());
+	if(ProductUserID.IsEmpty())
+	{
+		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Provided User is missing its ProductUserID"));
+		return;
+	}
+	
+	LobbyDetails.MemberList.Add(ProductUserID, EosUser);
+}
+
+/**
+ * Tries to store the given list of user's in the member-list.
+ *
+ * @param EosUsers The Eos-Users to store in the member-list.
+ */
+void ULobbySubsystem::StoreMembers(TArray<UEosUser*> &EosUsers)
+{
+	for (UEosUser* EosUser : EosUsers)
+	{
+		StoreMember(EosUser);
+	}
 }
 
 

@@ -11,7 +11,9 @@ public class OnlineMultiplayer : ModuleRules
 
         PublicDependencyModuleNames.AddRange(
             new string[]
-            {}
+                {
+                    "Engine"
+                }
         );
 
         PrivateDependencyModuleNames.AddRange(

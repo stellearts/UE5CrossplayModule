@@ -23,22 +23,29 @@ void USteamOnlineUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 // --------------------------------------------
 
 
-void USteamOnlineUserSubsystem::FetchAvatar(const uint64& UserIDString, const TFunction<void>& Callback)
+void USteamOnlineUserSubsystem::FetchAvatar(const FString& UserIDString, const TFunction<void>& Callback)
 {
 	CHECK_STEAM
-	const CSteamID UserID(UserIDString);
+	const uint64 UserID = FCString::Strtoui64(*UserIDString, nullptr, 10);
+	if(!UserID)
+	{
+		UE_LOG(LogSteamOnlineUserSubsystem, Warning, TEXT("Invalid User-ID given in USteamOnlineUserSubsystem::FetchAvatar"));
+		return;
+	}
+	
+	const CSteamID SteamUserID(UserID);
 	
 	// Return if the image is already being requested. Callback will be called when the image is ready.
-	if (SteamFriends()->RequestUserInformation(UserID, false)) return;
+	if (SteamFriends()->RequestUserInformation(SteamUserID, false)) return;
 
 	// Image is ready.
-	ProcessAvatar(UserID);
+	ProcessAvatar(SteamUserID);
 }
 
-void USteamOnlineUserSubsystem::ProcessAvatar(const CSteamID& UserID)
+void USteamOnlineUserSubsystem::ProcessAvatar(const CSteamID& SteamUserID)
 {
 	// Listen to the callback when the image is not yet ready
-	if (const int ImageData = SteamFriends()->GetSmallFriendAvatar(UserID); ImageData != -1) 
+	if (const int ImageData = SteamFriends()->GetSmallFriendAvatar(SteamUserID); ImageData != -1) 
 	{
 		uint32 ImageWidth, ImageHeight;
 		if (SteamUtils()->GetImageSize(ImageData, &ImageWidth, &ImageHeight)) 

@@ -1,0 +1,5 @@
+This module should automatically initialize itself.
+
+It should get all of its functionality ready before the gameinstance can run.
+We can then call whatever we want afterwards and we know for sure that everything is correct.
+For instance, we should join any lobby we are a part of directly when starting the game so that we can check that inside any part of the game that requires it, and so that we don't need to add complex logic inside the main module of the game.

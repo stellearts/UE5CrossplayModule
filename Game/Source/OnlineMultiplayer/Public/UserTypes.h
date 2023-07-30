@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "EOSManager.h"
 #include "eos_common.h"
 #include "UserTypes.generated.h"
 
+DECLARE_LOG_CATEGORY_EXTERN(LogUserType, Log, All);
+inline DEFINE_LOG_CATEGORY(LogUserType);
 
 
-// TODO: UUser class for platform specific. UEosUser : UUser for online users. ULocalUser : UEosUser for some extra local functionality.
 
 // These are the external account types that EOS supports
 struct FExternalAccount {
@@ -23,7 +23,8 @@ typedef TMap<EOS_EExternalAccountType, FExternalAccount> FExternalAccountsMap;
 
 
 /**
- * The platform user contains the data that any platform can supply, such as getting the username or avatar of a Steam or PSN user, and should be used for the friends on the users platform.
+ * The platform user contains the data that any platform can supply, such as the username or avatar.
+ * Should be used for the friends on the user's platform, and for inviting them to lobbies.
  */
 UCLASS(BlueprintType)
 class UPlatformUser : public UObject
@@ -54,7 +55,7 @@ public:
 
 	// Setters
 	FORCEINLINE void SetPlatformID(const FString& PlatformUserID) { PlatformUserState.PlatformUserID = PlatformUserID; }
-	FORCEINLINE void SetPlatformID(const uint64& PlatformUserID) { PlatformUserState.PlatformUserID = FString::FromInt(PlatformUserID); }
+	FORCEINLINE void SetPlatformID(const uint64& PlatformUserID) { PlatformUserState.PlatformUserID = FString::Printf(TEXT("%llu"), PlatformUserID); }
 	FORCEINLINE void SetUsername(const FString& DisplayName) { PlatformUserState.DisplayName = DisplayName; }
 	FORCEINLINE void SetAvatar(UTexture2D* AvatarURL) { PlatformUserState.Avatar = AvatarURL; }
 };
@@ -62,8 +63,7 @@ public:
 
 
 /**
- * Represents an online user which has the extra properties we need to do matchmaking.
- *
+ * Represents an online user which has the extra properties needed for EOS lobbies/sessions.
  * Users joining a lobby/session will join with their EOS-product-user-ID and we can use that to fetch some data and create this user.
  */
 UCLASS(BlueprintType)
@@ -111,8 +111,10 @@ public:
 };
 
 
+
 /**
- * The local user is an EOS user with some extra data and helper methods.
+ * The local user is an EOS user with extra properties and helper methods.
+ * This is the user on the client, the local player.
  */
 UCLASS(BlueprintType)
 class ULocalUser final : public UEosUser
@@ -135,9 +137,9 @@ public:
 
 	// Setters
 	FORCEINLINE void SetLobbyID(const FString& InLobbyID) { LocalUserState.LobbyID = InLobbyID; }
-	FORCEINLINE void SetLobbyID(const uint64& InLobbyID) { LocalUserState.LobbyID = FString::FromInt(InLobbyID); }
+	FORCEINLINE void SetLobbyID(const uint64& InLobbyID) { LocalUserState.LobbyID = FString::Printf(TEXT("%llu"), InLobbyID); }
 	FORCEINLINE void SetShadowLobbyID(const FString& InShadowLobbyID) { LocalUserState.ShadowLobbyID = InShadowLobbyID; }
-	FORCEINLINE void SetShadowLobbyID(const uint64& InShadowLobbyID) { LocalUserState.ShadowLobbyID = FString::FromInt(InShadowLobbyID); }
+	FORCEINLINE void SetShadowLobbyID(const uint64& InShadowLobbyID) { LocalUserState.ShadowLobbyID = FString::Printf(TEXT("%llu"), InShadowLobbyID); }
 	FORCEINLINE void SetContinuanceToken(const EOS_ContinuanceToken& InContinuanceToken) { LocalUserState.ContinuanceToken = InContinuanceToken; }
 
 	// Helper functions to make the code more readable
@@ -155,24 +157,24 @@ public:
 
 inline FString EosIDToString(const EOS_ProductUserId& ProductUserID)
 {
-	char IDBuffer[EOS_PRODUCTUSERID_MAX_LENGTH];
-	int32_t BufferSize = EOS_PRODUCTUSERID_MAX_LENGTH;
+	char IDBuffer[EOS_PRODUCTUSERID_MAX_LENGTH + 1] = {};
+	int32_t BufferSize = EOS_PRODUCTUSERID_MAX_LENGTH + 1;
 	if(const EOS_EResult ResultCode = EOS_ProductUserId_ToString(ProductUserID, IDBuffer, &BufferSize); ResultCode != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogEos, Warning, TEXT("EOS_ProductUserId_ToString failed. Result Code: [%s]"), *FString(EOS_EResult_ToString(ResultCode)));
+		UE_LOG(LogUserType, Warning, TEXT("EOS_ProductUserId_ToString failed. Result Code: [%s]"), *FString(EOS_EResult_ToString(ResultCode)));
 		return FString();
 	}
-	return IDBuffer;
+	return FString(ANSI_TO_TCHAR(IDBuffer));
 }
 
 inline FString EosIDToString(const EOS_EpicAccountId& EpicAccountID)
 {
-	char IDBuffer[EOS_PRODUCTUSERID_MAX_LENGTH];
-	int32_t BufferSize = EOS_PRODUCTUSERID_MAX_LENGTH;
+	char IDBuffer[EOS_EPICACCOUNTID_MAX_LENGTH + 1] = {};
+	int32_t BufferSize = EOS_EPICACCOUNTID_MAX_LENGTH + 1;
 	if(const EOS_EResult ResultCode = EOS_EpicAccountId_ToString(EpicAccountID, IDBuffer, &BufferSize); ResultCode != EOS_EResult::EOS_Success)
 	{
-		UE_LOG(LogEos, Warning, TEXT("EOS_ProductUserId_ToString failed. Result Code: [%s]"), *FString(EOS_EResult_ToString(ResultCode)));
+		UE_LOG(LogUserType, Warning, TEXT("EOS_EpicAccountId_ToString failed. Result Code: [%s]"), *FString(EOS_EResult_ToString(ResultCode)));
 		return FString();
 	}
-	return IDBuffer;
+	return FString(ANSI_TO_TCHAR(IDBuffer));
 }

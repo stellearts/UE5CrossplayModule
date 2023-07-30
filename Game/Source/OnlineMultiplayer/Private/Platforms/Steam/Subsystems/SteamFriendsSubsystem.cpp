@@ -113,9 +113,22 @@ UTexture2D* USteamFriendsSubsystem::CreateTextureFromAvatar(const int AvatarHand
 // --------------------------------------------
 
 
-void USteamFriendsSubsystem::InviteToLobby()
+void USteamFriendsSubsystem::InviteToLobby(const FString& LobbyID, const FString& UserID)
 {
-	// TODO:
-	// Send an invite using EOS_Lobby_SendInvite using their product user id.
-	// If both friends from steam, also send invite using steam SDK to show it in overlay.
+	const uint64 SteamLobbyID = FCString::Strtoui64(*LobbyID, nullptr, 10);
+	const uint64 SteamUserID = FCString::Strtoui64(*UserID, nullptr, 10);
+
+	UE_LOG(LogSteamFriendsSubsystem, Warning, TEXT("SteamLobbyID: %s"), *LobbyID);
+	UE_LOG(LogSteamFriendsSubsystem, Warning, TEXT("SteamUserID: %s"), *UserID);
+	
+	if(!SteamLobbyID || !SteamUserID)
+	{
+		UE_LOG(LogSteamFriendsSubsystem, Warning, TEXT("Invalid LobbyID or UserID given in ::InviteToLobby"));
+		return;
+	}
+	
+	if (!SteamMatchmaking()->InviteUserToLobby(SteamLobbyID, SteamUserID))
+	{
+		UE_LOG(LogSteamFriendsSubsystem, Warning, TEXT("Failed to send lobby invite."));
+	}
 }

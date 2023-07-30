@@ -47,9 +47,9 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
-	void FetchAvatar(const uint64& UserIDString, const TFunction<void>& Callback);
+	void FetchAvatar(const FString& UserIDString, const TFunction<void>& Callback);
 
 private:
-	void ProcessAvatar(const CSteamID& UserID);
+	void ProcessAvatar(const CSteamID& SteamUserID);
 	STEAM_CALLBACK(USteamOnlineUserSubsystem, OnPersonaStateChange, PersonaStateChange_t);
 };

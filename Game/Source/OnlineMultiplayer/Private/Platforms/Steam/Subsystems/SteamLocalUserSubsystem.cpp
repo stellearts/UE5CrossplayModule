@@ -1,6 +1,6 @@
 ﻿// Copyright © 2023 Melvin Brink
 
-#include "Platforms/Steam/Subsystems/SteamUserSubsystem.h"
+#include "..\..\..\..\Public\Platforms\Steam\Subsystems\SteamLocalUserSubsystem.h"
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
@@ -14,7 +14,7 @@
 
 
 
-void USteamUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+void USteamLocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 }
@@ -29,7 +29,7 @@ void USteamUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
  * Will call OnEncryptedAppTicketResponse when the request is done.
  * Bind to OnEncryptedAppTicketReady delegate to receive the ticket in your callback.
  */
-void USteamUserSubsystem::RequestEncryptedAppTicket()
+void USteamLocalUserSubsystem::RequestEncryptedAppTicket()
 {
 	CHECK_STEAM
 
@@ -44,7 +44,7 @@ void USteamUserSubsystem::RequestEncryptedAppTicket()
 	// }
 
 	const SteamAPICall_t RequestEncryptedAppTicket = SteamUser()->RequestEncryptedAppTicket(nullptr, 0);
-	m_EncryptedAppTicketResponseCallResult.Set(RequestEncryptedAppTicket, this, &USteamUserSubsystem::OnEncryptedAppTicketResponse);
+	m_EncryptedAppTicketResponseCallResult.Set(RequestEncryptedAppTicket, this, &USteamLocalUserSubsystem::OnEncryptedAppTicketResponse);
 }
 
 /**
@@ -52,11 +52,11 @@ void USteamUserSubsystem::RequestEncryptedAppTicket()
  *
  * Broadcasts OnEncryptedAppTicketReady delegate on success.
  */
-void USteamUserSubsystem::OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* pEncryptedAppTicketResponse, bool bIOFailure)
+void USteamLocalUserSubsystem::OnEncryptedAppTicketResponse(EncryptedAppTicketResponse_t* pEncryptedAppTicketResponse, bool bIOFailure)
 {
 	if (bIOFailure)
 	{
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("There has been an IO Failure when requesting the Encrypted App Ticket."));
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("There has been an IO Failure when requesting the Encrypted App Ticket."));
 		OnEncryptedAppTicketReady.Broadcast(TArray<uint8>());
 		return;
 	}
@@ -71,23 +71,23 @@ void USteamUserSubsystem::OnEncryptedAppTicketResponse(EncryptedAppTicketRespons
 			return;
 		}
 		
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("GetEncryptedAppTicket failed."));
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("GetEncryptedAppTicket failed."));
 		return;
 	}
 
 	// Log errors.
 	switch (pEncryptedAppTicketResponse->m_eResult) {
 	case k_EResultNoConnection:
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("Calling RequestEncryptedAppTicket while not connected to Steam results in this error."));
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("Calling RequestEncryptedAppTicket while not connected to Steam results in this error."));
 		break;
 	case k_EResultDuplicateRequest:
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("Calling RequestEncryptedAppTicket while there is already a pending request results in this error."));
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("Calling RequestEncryptedAppTicket while there is already a pending request results in this error."));
 		break;
 	case k_EResultLimitExceeded:
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("Calling RequestEncryptedAppTicket more than once per minute returns this error."));
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("Calling RequestEncryptedAppTicket more than once per minute returns this error."));
 		break;
 	default:
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("Encrypted App Ticket response returned an unexpected result: %d"), static_cast<int32>(pEncryptedAppTicketResponse->m_eResult));
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("Encrypted App Ticket response returned an unexpected result: %d"), static_cast<int32>(pEncryptedAppTicketResponse->m_eResult));
 		break;
 	}
 	
@@ -105,7 +105,7 @@ void USteamUserSubsystem::OnEncryptedAppTicketResponse(EncryptedAppTicketRespons
  *
  * Broadcasts OnSessionTicketReady delegate when the ticket is already valid. This will not call OnSessionTicketResponse.
  */
-void USteamUserSubsystem::RequestSessionTicket()
+void USteamLocalUserSubsystem::RequestSessionTicket()
 {
 	CHECK_STEAM
 	
@@ -114,7 +114,7 @@ void USteamUserSubsystem::RequestSessionTicket()
 		// If the session ticket is ready/validated, don't request a new one.
 		if(bSessionTicketReady)
 		{
-			UE_LOG(LogSteamUserSubsystem, Log, TEXT("Session-Ticket already validated."));
+			UE_LOG(LogSteamLocalUserSubsystem, Log, TEXT("Session-Ticket already validated."));
 			OnSessionTicketReady.Broadcast(SessionTicket);
 			return;
 		}
@@ -122,7 +122,7 @@ void USteamUserSubsystem::RequestSessionTicket()
 		// If we are already waiting for a response, don't request a new one.
 		if(bWaitingForSessionTicket)
 		{
-			UE_LOG(LogSteamUserSubsystem, Log, TEXT("Session-Ticket already requested. Waiting for response..."));
+			UE_LOG(LogSteamLocalUserSubsystem, Log, TEXT("Session-Ticket already requested. Waiting for response..."));
 			return;
 		}
 	}
@@ -137,7 +137,7 @@ void USteamUserSubsystem::RequestSessionTicket()
 
 	if (AuthTicket == k_HAuthTicketInvalid)
 	{
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("Failed to get Session-Ticket."));
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("Failed to get Session-Ticket."));
 		bWaitingForSessionTicket = false;
 		OnSessionTicketReady.Broadcast(TArray<uint8>());
 		return;
@@ -151,7 +151,7 @@ void USteamUserSubsystem::RequestSessionTicket()
  *
  * Broadcasts OnSessionTicketReady delegate on success.
  */
-void USteamUserSubsystem::OnSessionTicketResponse(GetAuthSessionTicketResponse_t* Data)
+void USteamLocalUserSubsystem::OnSessionTicketResponse(GetAuthSessionTicketResponse_t* Data)
 {
 	if (Data->m_eResult == k_EResultOK)
 	{
@@ -160,7 +160,7 @@ void USteamUserSubsystem::OnSessionTicketResponse(GetAuthSessionTicketResponse_t
 	}
 	else
 	{
-		UE_LOG(LogSteamUserSubsystem, Error, TEXT("OnSessionTicketResponse: failed, error code: [%d]."), Data->m_eResult);
+		UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("OnSessionTicketResponse: failed, error code: [%d]."), Data->m_eResult);
 		OnSessionTicketReady.Broadcast(TArray<uint8>());
 	}
 }

@@ -58,15 +58,16 @@ void FSteamManager::Initialize()
 		return;
 	}
 	
-	if (SteamAPI_Init())
+	if (!SteamAPI_Init())
 	{
+		UE_LOG(LogSteamManager, Error, TEXT("Failed to initialize Steamworks SDK"));
+		return;
 		UE_LOG(LogSteamManager, Log, TEXT("Steamworks SDK Initialized"));
 		SteamUtils()->SetWarningMessageHook(SteamAPIDebugMessageHook);
 	}
-	else
-	{
-		UE_LOG(LogSteamManager, Error, TEXT("Failed to initialize Steamworks SDK"));
-	}
+	
+	UE_LOG(LogSteamManager, Log, TEXT("Steamworks SDK Initialized"));
+	SteamUtils()->SetWarningMessageHook(SteamAPIDebugMessageHook);
 }
 
 void FSteamManager::DeInitialize()

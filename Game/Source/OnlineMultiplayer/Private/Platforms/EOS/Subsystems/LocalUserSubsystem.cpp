@@ -3,16 +3,12 @@
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "Platforms/Steam/SteamManager.h"
-#include "Platforms/Steam/Subsystems/SteamUserSubsystem.h"
+#include "..\..\..\..\Public\Platforms\Steam\Subsystems\SteamLocalUserSubsystem.h"
 
 
-ULocalUserSubsystem::ULocalUserSubsystem() : SteamManager(&FSteamManager::Get()), EosManager(&FEosManager::Get())
+ULocalUserSubsystem::ULocalUserSubsystem() : EosManager(&FEosManager::Get())
 {
 	LocalUser = NewObject<ULocalUser>();
-
-	// TODO: Compatibility for other platforms. Set based on preprocessor directive?
-	// Set platform
-	LocalUser->SetPlatform(EOS_EExternalAccountType::EOS_EAT_STEAM);
 }
 
 void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -21,15 +17,23 @@ void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle) return;
-	// TODO: EOS user interface or something if it exists at all.
-
-
 	
-	// TODO: Steam should not run at all if playing on different platform, find a way to disable it and run this conditionally.
-	// Get the SteamManager and set necessary callbacks.
-	SteamUserSubsystem = Collection.InitializeDependency<USteamUserSubsystem>();
-	SteamUserSubsystem->OnSessionTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamSessionTicketResponse);
-	SteamUserSubsystem->OnEncryptedAppTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamEncryptedAppTicketResponse);
+	// TODO: Compatibility for other platforms. Set based on preprocessor directive?
+	
+	// Set platform
+	LocalUser->SetPlatform(EOS_EExternalAccountType::EOS_EAT_STEAM);
+	LocalUser->SetPlatformID(FString::Printf(TEXT("%llu"), SteamLocalUserSubsystem->GetSteamID().ConvertToUint64()));
+
+	// Init platform-local-user subsystems
+	SteamLocalUserSubsystem = Collection.InitializeDependency<USteamLocalUserSubsystem>();
+	
+	if(LocalUser->GetPlatform() == EOS_EExternalAccountType::EOS_EAT_STEAM)
+	{
+		// Get the SteamManager and set necessary callbacks
+		SteamLocalUserSubsystem->OnSessionTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamSessionTicketResponse);
+		SteamLocalUserSubsystem->OnEncryptedAppTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamEncryptedAppTicketResponse);
+	}
+	
 }
 
 
@@ -44,7 +48,7 @@ void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void ULocalUserSubsystem::RequestSteamEncryptedAppTicket(const TFunction<void(std::string Ticket)> TicketReadyCallback)
 {
 	SteamEncryptedAppTicketCallback = TicketReadyCallback;
-	SteamUserSubsystem->RequestEncryptedAppTicket();
+	SteamLocalUserSubsystem->RequestEncryptedAppTicket();
 }
 
 /**
@@ -83,7 +87,7 @@ void ULocalUserSubsystem::OnSteamEncryptedAppTicketResponse(const TArray<uint8> 
 void ULocalUserSubsystem::RequestSteamSessionTicket(const TFunction<void(std::string TicketString)> TicketReadyCallback)
 {
 	SteamSessionTicketCallback = TicketReadyCallback;
-	SteamUserSubsystem->RequestSessionTicket();
+	SteamLocalUserSubsystem->RequestSessionTicket();
 }
 
 /**

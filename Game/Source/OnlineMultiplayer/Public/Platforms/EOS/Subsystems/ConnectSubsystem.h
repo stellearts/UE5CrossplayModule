@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "Platforms/EOS/UserTypes.h"
+#include "UserTypes.h"
 #include "ConnectSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogConnectSubsystem, Log, All);
@@ -40,7 +40,7 @@ private:
 	void OnLogoutComplete();
 
 public:
-	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> Callback);
+	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> &Callback);
 
 private:
 	static void EOS_CALL OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);

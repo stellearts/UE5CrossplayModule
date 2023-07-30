@@ -4,7 +4,7 @@
 
 #include <string>
 #include "CoreMinimal.h"
-#include "Platforms/EOS/UserTypes.h"
+#include "UserTypes.h"
 #include "eos_sdk.h"
 #include "LocalUserSubsystem.generated.h"
 
@@ -28,9 +28,8 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 private:
-	class FSteamManager* SteamManager;
 	class FEosManager* EosManager;
-	UPROPERTY() class USteamUserSubsystem* SteamUserSubsystem;
+	UPROPERTY() class USteamLocalUserSubsystem* SteamLocalUserSubsystem;
 	UPROPERTY() ULocalUser* LocalUser;
 
 public:

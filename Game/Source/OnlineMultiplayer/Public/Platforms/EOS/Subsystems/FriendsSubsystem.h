@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "Platforms/EOS/UserTypes.h"
+#include "UserTypes.h"
 #include "FriendsSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFriendsSubsystem, Log, All);
@@ -21,13 +21,15 @@ class ONLINEMULTIPLAYER_API UFriendsSubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 	
 protected:
+	UFriendsSubsystem();
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
 	UFUNCTION(BlueprintCallable)
 	TArray<UPlatformUser*> GetFriendList() const;
-	
-	void InviteToLobby();
+
+	UFUNCTION(BlueprintCallable)
+	void InviteToLobby(UPlatformUser* PlatformUser);
 
 private:
 	class FEosManager* EosManager;

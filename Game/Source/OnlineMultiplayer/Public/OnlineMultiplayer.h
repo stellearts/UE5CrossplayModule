@@ -12,11 +12,13 @@
 
 
 /**
- * Test module for the Steam SDK.
+ * Module for the Steam SDK.
  */
 class FOnlineMultiplayer : public IModuleInterface
 {
 public:
     virtual void StartupModule() override;
     virtual void ShutdownModule() override;
+
+	void WaitUntilReady(TFunction<void()> &Callback);
 };

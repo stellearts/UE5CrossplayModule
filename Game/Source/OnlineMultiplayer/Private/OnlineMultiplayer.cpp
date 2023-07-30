@@ -31,4 +31,18 @@ void FOnlineMultiplayer::ShutdownModule()
 	FSteamManager::Get().DeInitialize();
 }
 
+/**
+ * Keeps checking if the subsystems in this module are fully done initializing.
+ *
+ * Use this whenever you want to make sure every variable on any subsystem is ready before using them.
+ * For instance, this function will wait when a user has fetched all information needed for a lobby / session, because we might be in a lobby when starting the game, and we need that data.
+ *
+ * This makes it easy to use in other modules since you don't have to add the necessary logic yourself.
+ *
+ * @param Callback the callback to run after the subsystems are initialized.
+ */
+void FOnlineMultiplayer::WaitUntilReady(TFunction<void()>& Callback)
+{
+}
+
 IMPLEMENT_MODULE(FOnlineMultiplayer, OnlineMultiplayer)

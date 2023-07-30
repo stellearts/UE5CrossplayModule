@@ -12,12 +12,12 @@
 
 #include "CoreMinimal.h"
 #include <string>
-#include "SteamUserSubsystem.generated.h"
+#include "SteamLocalUserSubsystem.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogSteamUserSubsystem, Log, All);
-inline DEFINE_LOG_CATEGORY(LogSteamUserSubsystem);
+DECLARE_LOG_CATEGORY_EXTERN(LogSteamLocalUserSubsystem, Log, All);
+inline DEFINE_LOG_CATEGORY(LogSteamLocalUserSubsystem);
 
-#define CHECK_STEAM if(!SteamAPI_Init()){ UE_LOG(LogSteamUserSubsystem, Error, TEXT("Steam SDK is not initialized.")); return; }
+#define CHECK_STEAM if(!SteamAPI_Init()){ UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("Steam SDK is not initialized.")); return; }
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnEncryptedAppTicketReady, TArray<uint8>);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionTicketReady, TArray<uint8>);
@@ -28,7 +28,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionTicketReady, TArray<uint8>);
  * Subsystem for managing the Steam user.
  */
 UCLASS(NotBlueprintable)
-class ONLINEMULTIPLAYER_API USteamUserSubsystem : public UGameInstanceSubsystem
+class ONLINEMULTIPLAYER_API USteamLocalUserSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 	
@@ -45,8 +45,8 @@ public:
 private:
 	// Ticket callbacks
 	void OnEncryptedAppTicketResponse( EncryptedAppTicketResponse_t *pEncryptedAppTicketResponse, bool bIOFailure );
-	CCallResult<USteamUserSubsystem, EncryptedAppTicketResponse_t> m_EncryptedAppTicketResponseCallResult;
-	STEAM_CALLBACK(USteamUserSubsystem, OnSessionTicketResponse, GetAuthSessionTicketResponse_t);
+	CCallResult<USteamLocalUserSubsystem, EncryptedAppTicketResponse_t> m_EncryptedAppTicketResponseCallResult;
+	STEAM_CALLBACK(USteamLocalUserSubsystem, OnSessionTicketResponse, GetAuthSessionTicketResponse_t);
 
 	// Session ticket data
 	TArray<uint8> SessionTicket;

@@ -9,7 +9,7 @@
 #include "steamnetworkingtypes.h"
 #pragma warning(pop)
 
-#include "Platforms/EOS/Subsystems/LobbySubsystem.h"
+#include "Platforms/EOS/Subsystems/Lobby/LobbySubsystem.h"
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 
 
