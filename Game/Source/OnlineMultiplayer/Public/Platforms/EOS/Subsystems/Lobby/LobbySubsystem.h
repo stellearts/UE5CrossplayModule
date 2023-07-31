@@ -20,6 +20,9 @@ enum class ELobbyResultCode : uint8
 	CreateFailure UMETA(DisplayName = "Failed to create lobby."),
 	JoinFailure UMETA(DisplayName = "Failed to join lobby."),
 	SearchFailure UMETA(DisplayName = "Failed to find lobby."),
+	InLobby UMETA(DisplayName = "Already in lobby."),
+	InvalidLobbyID UMETA(DisplayName = "Invalid Lobby ID."),
+	InvalidUserID UMETA(DisplayName = "Invalid User ID."),
 	EosFailure UMETA(DisplayName = "Some EOS functionality failed."),
 	Unknown UMETA(DisplayName = "Unkown error occurred."),
 };
@@ -33,7 +36,7 @@ struct FLobbyDetails
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly)
-	FString LobbyId;
+	FString LobbyID;
 
 	UPROPERTY(BlueprintReadOnly)
 	FString LobbyOwnerID;
@@ -73,24 +76,22 @@ protected:
 public:
 	
 	UFUNCTION(BlueprintCallable, Category = "Online|Lobby")
-	void CreateLobby();
-	void JoinLobbyByID(const EOS_LobbyId LobbyID);
-	void JoinLobbyByUserID(const EOS_ProductUserId UserID);
+	void CreateLobby(const int32 MaxMembers);
+	void JoinLobbyByID(const FString& LobbyID);
+	void JoinLobbyByUserID(const FString& UserID);
 
 private:
 	void JoinLobbyByHandle(const EOS_HLobbyDetails LobbyDetailsHandle);
-	
-	static void OnCreateLobbyComplete(const EOS_Lobby_CreateLobbyCallbackInfo* Data);
 	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
 	
 	static void OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
 	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
 
-	void OnLobbyUserJoined(const EOS_ProductUserId TargetUserID);
-	void OnLobbyUserLeft(const EOS_ProductUserId TargetUserID);
-	void OnLobbyUserDisconnected(const EOS_ProductUserId TargetUserID);
-	void OnLobbyUserKicked(const EOS_ProductUserId TargetUserID);
-	void OnLobbyUserPromoted(const EOS_ProductUserId TargetUserID);
+	void OnLobbyUserJoined(const FString& TargetUserID);
+	void OnLobbyUserLeft(const FString& TargetUserID);
+	void OnLobbyUserDisconnected(const FString& TargetUserID);
+	void OnLobbyUserKicked(const FString& TargetUserID);
+	void OnLobbyUserPromoted(const FString& TargetUserID);
 
 public:
 	// Create / Join
@@ -120,7 +121,7 @@ private:
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() ULocalUser* LocalUser;
 	
-	TArray<EOS_ProductUserId> UsersToLoad; // Used to check if user's have left after loading their data.
+	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
 	FLobbyDetails LobbyDetails; // Struct containing all the necessary data.
 
 public:

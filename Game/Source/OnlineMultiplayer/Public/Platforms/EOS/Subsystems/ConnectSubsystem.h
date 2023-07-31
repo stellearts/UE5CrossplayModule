@@ -40,7 +40,7 @@ private:
 	void OnLogoutComplete();
 
 public:
-	void GetUserInfo(TArray<EOS_ProductUserId>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> &Callback);
+	void GetUserInfo(TArray<FString>& UserIDs, const TFunction<void(TMap<FString, UEosUser*>)> &Callback);
 
 private:
 	static void EOS_CALL OnGetUserInfoComplete(const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data);

@@ -4,7 +4,7 @@
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_auth.h"
-
+#include "Helpers.h"
 
 
 void UAuthSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -55,7 +55,7 @@ void UAuthSubsystem::OnLoginComplete(const EOS_Auth_LoginCallbackInfo* Data)
 	if(Data->ResultCode == EOS_EResult::EOS_Success)
 	{
 		// Login was successful. We can now use the Auth interface.
-		LocalUserSubsystem->GetLocalUser()->SetEpicAccountID(Data->LocalUserId);
+		LocalUserSubsystem->GetLocalUser()->SetEpicAccountID(EosAccountIDToString(Data->LocalUserId));
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_Auth_ExternalAuthNotLinked ||
 			Data->ResultCode == EOS_EResult::EOS_InvalidUser)

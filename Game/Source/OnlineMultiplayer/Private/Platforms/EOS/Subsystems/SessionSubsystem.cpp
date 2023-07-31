@@ -4,7 +4,7 @@
 #include "Platforms/EOS/Subsystems/LocalUserSubsystem.h"
 #include "Platforms/EOS/EOSManager.h"
 #include "eos_sessions.h"
-
+#include "Helpers.h"
 
 
 void USessionSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -31,7 +31,7 @@ void USessionSubsystem::CreateSession()
 	CreateSessionOptions.SessionName = "MySession";
 	CreateSessionOptions.BucketId = "GameMode:Region:MapName";
 	CreateSessionOptions.MaxPlayers = 8;
-	CreateSessionOptions.LocalUserId = LocalUserSubsystem->GetLocalUser()->GetProductUserID();
+	CreateSessionOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	CreateSessionOptions.bPresenceEnabled = true;
 	CreateSessionOptions.bSanctionsEnabled = false;
 	

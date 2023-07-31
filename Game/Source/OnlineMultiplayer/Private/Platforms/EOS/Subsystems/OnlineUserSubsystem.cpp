@@ -6,7 +6,7 @@
 #include "Platforms/Steam/Subsystems/SteamOnlineUserSubsystem.h"
 
 #include "eos_common.h"
-
+#include "Helpers.h"
 
 
 UOnlineUserSubsystem::UOnlineUserSubsystem() : SteamManager(&FSteamManager::Get()), EosManager(&FEosManager::Get())
@@ -41,9 +41,9 @@ UPlatformUser* UOnlineUserSubsystem::GetFriend(const FString& PlatformUserID)
  *
  * @param ProductUserID The Product-User-ID of the member to find.
  */
-UEosUser* UOnlineUserSubsystem::GetSessionMember(const EOS_ProductUserId ProductUserID)
+UEosUser* UOnlineUserSubsystem::GetSessionMember(const FString& ProductUserID)
 {
-	UEosUser** FoundUser = SessionList.Find(FString(EosIDToString(ProductUserID)));
+	UEosUser** FoundUser = SessionList.Find(ProductUserID);
 	return FoundUser ? *FoundUser : nullptr;
 }
 
@@ -86,7 +86,7 @@ bool UOnlineUserSubsystem::StoreSessionMember(UEosUser* EosUser)
 		return false;
 	}
 	
-	const FString ProductUserID = EosIDToString(EosUser->GetProductUserID());
+	const FString ProductUserID = EosUser->GetProductUserID();
 	if(ProductUserID.IsEmpty())
 	{
 		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Provided User is missing its ProductUserID"));

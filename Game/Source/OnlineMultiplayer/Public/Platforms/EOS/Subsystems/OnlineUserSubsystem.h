@@ -49,7 +49,7 @@ public:
 	
 	// Get single
 	UPlatformUser* GetFriend(const FString& PlatformUserID);
-	UEosUser* GetSessionMember(const EOS_ProductUserId ProductUserID);
+	UEosUser* GetSessionMember(const FString& ProductUserID);
 	
 	// Get all
 	FORCEINLINE TMap<FString, UPlatformUser*> GetFriendList() { return FriendList; }

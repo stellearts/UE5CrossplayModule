@@ -5,14 +5,11 @@
 #include "eos_common.h"
 #include "UserTypes.generated.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogUserType, Log, All);
-inline DEFINE_LOG_CATEGORY(LogUserType);
-
 
 
 // These are the external account types that EOS supports
 struct FExternalAccount {
-	EOS_ProductUserId ProductUserID;
+	FString ProductUserID;
 	FString DisplayName;
 	FString AccountID;
 	EOS_EExternalAccountType AccountType;
@@ -73,8 +70,8 @@ class UEosUser : public UPlatformUser
 	
 	struct FUserState
 	{
-		EOS_ProductUserId ProductUserID;
-		EOS_EpicAccountId EpicAccountID;
+		FString ProductUserID;
+		FString EpicAccountID;
 		FExternalAccountsMap ExternalAccounts;
 		EOS_EExternalAccountType Platform;
 	};
@@ -84,8 +81,8 @@ protected:
 	
 public:
 	void Initialize(
-			const EOS_ProductUserId& InProductUserID,
-			const EOS_EpicAccountId& InEpicAccountID,
+			const FString& InProductUserID,
+			const FString& InEpicAccountID,
 			const FExternalAccountsMap& InExternalAccounts,
 			const EOS_EExternalAccountType InPlatform,
 			const FString& InPlatformUserID,
@@ -100,13 +97,13 @@ public:
 	}
 	
 	// Getters
-	FORCEINLINE EOS_ProductUserId GetProductUserID() const { return UserState.ProductUserID; }
-	FORCEINLINE EOS_EpicAccountId GetEpicAccountID() const { return UserState.EpicAccountID; }
+	FORCEINLINE FString& GetProductUserID() { return UserState.ProductUserID; }
+	FORCEINLINE FString& GetEpicAccountID() { return UserState.EpicAccountID; }
 	FORCEINLINE EOS_EExternalAccountType GetPlatform() const { return UserState.Platform; }
 
 	// Setters
-	FORCEINLINE void SetProductUserID(const EOS_ProductUserId& InProductUserID) { UserState.ProductUserID = InProductUserID; }
-	FORCEINLINE void SetEpicAccountID(const EOS_EpicAccountId& InEpicAccountID) { UserState.EpicAccountID = InEpicAccountID; }
+	FORCEINLINE void SetProductUserID(const FString& InProductUserID) { UserState.ProductUserID = InProductUserID; }
+	FORCEINLINE void SetEpicAccountID(const FString& InEpicAccountID) { UserState.EpicAccountID = InEpicAccountID; }
 	FORCEINLINE void SetPlatform(const EOS_EExternalAccountType PlatformType) { UserState.Platform = PlatformType; }
 };
 
@@ -143,38 +140,8 @@ public:
 	FORCEINLINE void SetContinuanceToken(const EOS_ContinuanceToken& InContinuanceToken) { LocalUserState.ContinuanceToken = InContinuanceToken; }
 
 	// Helper functions to make the code more readable
-	FORCEINLINE bool IsAuthLoggedIn() const { return EOS_EpicAccountId_IsValid(UserState.EpicAccountID) == EOS_TRUE; }
-	FORCEINLINE bool IsConnectLoggedIn() const { return EOS_ProductUserId_IsValid(UserState.ProductUserID) == EOS_TRUE; }
+	FORCEINLINE bool IsAuthLoggedIn() const { return !UserState.EpicAccountID.IsEmpty(); }
+	FORCEINLINE bool IsConnectLoggedIn() const { return !UserState.ProductUserID.IsEmpty(); }
 	FORCEINLINE bool IsInLobby() const { return !LocalUserState.LobbyID.IsEmpty(); }
 	FORCEINLINE bool IsInShadowLobby() const { return !LocalUserState.ShadowLobbyID.IsEmpty(); }
 };
-
-
-
-
-
-// --- Global helper functions ---
-
-inline FString EosIDToString(const EOS_ProductUserId& ProductUserID)
-{
-	char IDBuffer[EOS_PRODUCTUSERID_MAX_LENGTH + 1] = {};
-	int32_t BufferSize = EOS_PRODUCTUSERID_MAX_LENGTH + 1;
-	if(const EOS_EResult ResultCode = EOS_ProductUserId_ToString(ProductUserID, IDBuffer, &BufferSize); ResultCode != EOS_EResult::EOS_Success)
-	{
-		UE_LOG(LogUserType, Warning, TEXT("EOS_ProductUserId_ToString failed. Result Code: [%s]"), *FString(EOS_EResult_ToString(ResultCode)));
-		return FString();
-	}
-	return FString(ANSI_TO_TCHAR(IDBuffer));
-}
-
-inline FString EosIDToString(const EOS_EpicAccountId& EpicAccountID)
-{
-	char IDBuffer[EOS_EPICACCOUNTID_MAX_LENGTH + 1] = {};
-	int32_t BufferSize = EOS_EPICACCOUNTID_MAX_LENGTH + 1;
-	if(const EOS_EResult ResultCode = EOS_EpicAccountId_ToString(EpicAccountID, IDBuffer, &BufferSize); ResultCode != EOS_EResult::EOS_Success)
-	{
-		UE_LOG(LogUserType, Warning, TEXT("EOS_EpicAccountId_ToString failed. Result Code: [%s]"), *FString(EOS_EResult_ToString(ResultCode)));
-		return FString();
-	}
-	return FString(ANSI_TO_TCHAR(IDBuffer));
-}

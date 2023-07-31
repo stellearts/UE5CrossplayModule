@@ -3,9 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "LobbySubsystem.h"
 #include "Engine/Engine.h"
 #include "Net/OnlineBlueprintCallProxyBase.h"
+#include "Platforms/EOS/Subsystems/Lobby/LobbySubsystem.h"
 #include "CreateLobbyCallbackProxy.generated.h"
 
 
@@ -22,7 +22,7 @@ struct FCreateLobbyResult
 	ELobbyResultCode LobbyResultCode;
 };
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FCreateLobbyCompleteDelegate, const FCreateLobbyResult&, Result);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProxyCreateLobbyCompleteDelegate, const FCreateLobbyResult&, Result);
 
 
 
@@ -33,18 +33,19 @@ class UCreateLobbyCallbackProxy : public UOnlineBlueprintCallProxyBase
 
 	// Called when the lobby was created successfully
 	UPROPERTY(BlueprintAssignable)
-	FCreateLobbyCompleteDelegate OnSuccess;
+	FProxyCreateLobbyCompleteDelegate OnSuccess;
 
 	// Called when there was an error creating the lobby
 	UPROPERTY(BlueprintAssignable)
-	FCreateLobbyCompleteDelegate OnFailure;
+	FProxyCreateLobbyCompleteDelegate OnFailure;
 	
 	// Create a lobby
 	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"), Category = "Online|Lobby")
-	static UCreateLobbyCallbackProxy* CreateLobby(UObject* WorldContextObject);
+	static UCreateLobbyCallbackProxy* CreateLobby(UObject* WorldContextObject, const int32 MaxMembers);
 	
 	virtual void Activate() override;
 	
 private:
 	UPROPERTY() UObject* WorldContextObject;
+	UPROPERTY() int32 MaxMembers;
 };
