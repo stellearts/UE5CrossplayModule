@@ -16,8 +16,6 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamFriendsSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogSteamFriendsSubsystem);
 
-#define CHECK_STEAM if(!SteamAPI_Init()){ UE_LOG(LogSteamFriendsSubsystem, Error, TEXT("Steam SDK is not initialized.")); return; }
-
 
 
 /**

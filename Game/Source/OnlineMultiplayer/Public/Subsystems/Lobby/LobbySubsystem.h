@@ -64,7 +64,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserPromotedDelegate);
  *
  * A 'lobby' is a synonym for a 'party' in this case.
  */
-UCLASS(BlueprintType)
+UCLASS()
 class ONLINEMULTIPLAYER_API ULobbySubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -94,11 +94,10 @@ private:
 	void OnLobbyUserPromoted(const FString& TargetUserID);
 
 public:
-	// Create / Join
+	// Delegates
 	FOnCreateLobbyCompleteDelegate OnCreateLobbyCompleteDelegate;
 	FOnJoinLobbyCompleteDelegate OnJoinLobbyCompleteDelegate;
 	
-	// Lobby User
 	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
 	FOnLobbyUserJoinedDelegate OnLobbyUserJoinedDelegate;
 	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
@@ -117,17 +116,16 @@ private:
 	EOS_HLobbySearch LobbySearchByUserIDHandle;
 	EOS_NotificationId OnLobbyMemberStatusUpdateID;
 
+	UPROPERTY() class UPlatformLobbySubsystemBase* LocalPlatformLobbySubsystem;
 	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() ULocalUser* LocalUser;
 	
 	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
-	FLobbyDetails LobbyDetails; // Struct containing all the necessary data.
+	UPROPERTY() FLobbyDetails LobbyDetails;
 	void LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess, const FString& ErrorCode)> OnCompleteCallback);
 
 public:
-	FORCEINLINE bool InLobby() const { return !LobbyDetails.LobbyID.IsEmpty(); }
-
 	// Lobby-Details Getters
 	FORCEINLINE FString GetLobbyID() const { return LobbyDetails.LobbyID; }
 	FORCEINLINE FString GetLobbyOwnerID() const { return LobbyDetails.LobbyOwnerID; }
@@ -136,10 +134,14 @@ public:
 	UOnlineUser* GetMember(const EOS_ProductUserId ProductUserID);
 
 	// Lobby-Details Setters
+	FORCEINLINE void SetLobbyDetails(const FLobbyDetails& InLobbyDetails) { LobbyDetails = InLobbyDetails; }
 	FORCEINLINE void SetLobbyID(const FString& InLobbyID) { LobbyDetails.LobbyID = InLobbyID; }
 	FORCEINLINE void SetLobbyOwnerID(const FString& InLobbyOwnerID) { LobbyDetails.LobbyOwnerID = InLobbyOwnerID; }
 	void StoreMember(UOnlineUser* OnlineUser);
 	void StoreMembers(TArray<UOnlineUser*> &OnlineUserList);
+
+	// Helpers
+	FORCEINLINE bool InLobby() const { return !LobbyDetails.LobbyID.IsEmpty(); }
 
 
 
@@ -148,18 +150,9 @@ public:
 	/*
 	 * Shadow lobby
 	 */
-	void CreateShadowLobby();
-	void OnCreateShadowLobbyComplete(const uint64 ShadowLobbyID);
 	
 	void JoinShadowLobby(const uint64 ShadowLobbyID);
 	void OnJoinShadowLobbyComplete(const uint64 ShadowLobbyID);
 
-	void AddShadowLobbyIdAttribute(const uint64 ShadowLobbyID);
-	static void OnAddShadowLobbyIdAttributeComplete(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
-
-private:
-	FDelegateHandle OnCreateShadowLobbyCompleteDelegateHandle;
-	FDelegateHandle OnJoinShadowLobbyCompleteDelegateHandle;
-	
-	UPROPERTY() class USteamLobbySubsystem* SteamLobbySubsystem;
+	void AddShadowLobbyIDAttribute(const FString& ShadowLobbyID, const TFunction<void(const bool bSuccess)>& OnCompleteCallback);
 };

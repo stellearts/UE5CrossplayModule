@@ -31,8 +31,6 @@ void USteamLocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
  */
 void USteamLocalUserSubsystem::RequestEncryptedAppTicket()
 {
-	CHECK_STEAM
-
 	// TODO: Check if we already have a ticket and if it is still valid.
 
 	// uint8 TicketBuffer[1024];
@@ -107,8 +105,6 @@ void USteamLocalUserSubsystem::OnEncryptedAppTicketResponse(EncryptedAppTicketRe
  */
 void USteamLocalUserSubsystem::RequestSessionTicket()
 {
-	CHECK_STEAM
-	
 	if(SessionTicket.Num())
 	{
 		// If the session ticket is ready/validated, don't request a new one.

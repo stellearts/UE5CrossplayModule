@@ -6,6 +6,7 @@
 #include "EOSManager.h"
 #include "eos_connect.h"
 #include "Helpers.h"
+#include "Subsystems/User/Online/SteamOnlineUserSubsystem.h"
 
 
 void UConnectSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -165,7 +166,7 @@ void UConnectSubsystem::CheckAccounts()
 
 struct FGetUserInfoClientData
 {
-	UConnectSubsystem* ConnectSubsystem;
+	UConnectSubsystem* Self;
 	ULocalUserSubsystem* LocalUserSubsystem;
 	TArray<EOS_ProductUserId> UserIDs;
 	TFunction<void(TArray<UOnlineUser*>)> Callback;
@@ -190,7 +191,7 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 
 	// Properties needed in the callback
 	FGetUserInfoClientData* GetUserInfoClientData = new FGetUserInfoClientData();
-	GetUserInfoClientData->ConnectSubsystem = this;
+	GetUserInfoClientData->Self = this;
 	GetUserInfoClientData->UserIDs = ProductUserIDs;
 	GetUserInfoClientData->Callback = Callback;
 
@@ -206,7 +207,7 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 	{
 		// Cast the ClientData back to its type
 		const FGetUserInfoClientData* ClientData = static_cast<FGetUserInfoClientData*>(Data->ClientData);
-		const UConnectSubsystem* ConnectSubsystem = ClientData->ConnectSubsystem;
+		const UConnectSubsystem* ConnectSubsystem = ClientData->Self;
 		const TArray<EOS_ProductUserId>& UserIDs = ClientData->UserIDs;
 		const TFunction<void(TArray<UOnlineUser*> OutUserList)> OnCompleteCallback = ClientData->Callback;
 		
@@ -307,14 +308,42 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 			}
 			OnlineUser->SetExternalPlatformUsers(ExternalPlatformUserMap);
 
-			// Fetch this user's avatar if the platform supports avatars.
-			// TODO: This functionality. And load an empty profile picture avatar for the platforms / user's that don't have any.
-			// TODO: Call the function on each user, and if the last user's avatar has been fetched, call the callback.
-			
+			// Add the new user to the list
 			OnlineUsers.Add(OnlineUser);
 		}
+
 		
-		OnCompleteCallback(OnlineUsers); // TODO: Move to the above TODO
-		delete ClientData;
+		/*
+		 * Fetch the avatars for all the users
+		 */
+
+		// This variable needs to stay alive when the function goes out of scope, it also needs to be thread-safe
+		TSharedPtr<int32, ESPMode::ThreadSafe> TotalLeftToFetch = MakeShared<int32, ESPMode::ThreadSafe>(OnlineUsers.Num());
+		TSharedPtr<FCriticalSection, ESPMode::ThreadSafe> Mutex = MakeShared<FCriticalSection, ESPMode::ThreadSafe>();
+		
+		if (TotalLeftToFetch == 0)
+		{
+			OnCompleteCallback(OnlineUsers);
+			delete ClientData;
+		}
+		
+		for (auto CurrentUser : OnlineUsers)
+		{
+			USteamOnlineUserSubsystem* SteamOnlineUserSubsystem = ConnectSubsystem->GetGameInstance()->GetSubsystem<USteamOnlineUserSubsystem>();
+			SteamOnlineUserSubsystem->FetchAvatar(FCString::Strtoui64(*CurrentUser->GetUserID(), nullptr, 10), [ClientData, OnCompleteCallback, CurrentUser, OnlineUsers, TotalLeftToFetch, Mutex](UTexture2D* Avatar)
+			{
+				UE_LOG(LogConnectSubsystem, Log, TEXT("Got texture of user."))
+				CurrentUser->SetAvatar(Avatar);
+
+				Mutex->Lock();
+				if(--(*TotalLeftToFetch) == 0)
+				{
+					delete ClientData;
+					OnCompleteCallback(OnlineUsers);
+				}
+				Mutex->Unlock();
+			});
+		}
+		
 	});
 }

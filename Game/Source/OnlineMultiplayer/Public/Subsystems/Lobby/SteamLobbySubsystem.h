@@ -11,43 +11,19 @@
 #pragma warning(pop)
 
 #include "CoreMinimal.h"
+#include "PlatformLobbySubsystemBase.h"
 #include "SteamLobbySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamLobbySubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogSteamLobbySubsystem);
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnCreateShadowLobbyCompleteDelegate, uint64);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnJoinShadowLobbyCompleteDelegate, uint64);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnUserJoinShadowLobbyDelegate, CSteamID);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnUserLeaveShadowLobbyDelegate, CSteamID);
-
-
-
-/*
- * Struct for storing the shadow-lobby details TODO: Rename to FShadowLobbyDetails and its instances.
- */
-USTRUCT(BlueprintType)
-struct FSteamLobbyDetails
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadOnly)
-	FString LobbyID;
-
-	UPROPERTY(BlueprintReadOnly)
-	FString LobbyOwnerID;
-
-	UPROPERTY(BlueprintReadOnly)
-	TMap<FString, class UOnlineUser*> MemberList;
-};
-
 
 
 /**
- * Subsystem for managing Steam friends.
+ * Subsystem for managing Steam friends
  */
 UCLASS(NotBlueprintable)
-class ONLINEMULTIPLAYER_API USteamLobbySubsystem : public UGameInstanceSubsystem
+class ONLINEMULTIPLAYER_API USteamLobbySubsystem : public UPlatformLobbySubsystemBase
 {
 	GENERATED_BODY()
 
@@ -55,30 +31,24 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
-	void CreateShadowLobby();
-	FOnCreateShadowLobbyCompleteDelegate OnCreateShadowLobbyCompleteDelegate;
-	
-	void JoinShadowLobby(const uint64 SteamLobbyID);
-	FOnJoinShadowLobbyCompleteDelegate OnJoinShadowLobbyCompleteDelegate;
-	
-	FOnUserJoinShadowLobbyDelegate OnUserJoinSteamLobbyDelegate;
-	FOnUserLeaveShadowLobbyDelegate OnUserLeaveSteamLobbyDelegate;
+	virtual void CreateLobby() override;
+	void JoinLobby(const uint64 SteamLobbyID);
 
 private:
-	void OnCreateShadowLobbyComplete(LobbyCreated_t* Data, bool bIOFailure);
+	void OnCreateLobbyComplete(LobbyCreated_t* Data, bool bIOFailure);
 	CCallResult<USteamLobbySubsystem, LobbyCreated_t> OnCreateShadowLobbyCallResult;
 
-	void OnJoinShadowLobbyComplete(LobbyEnter_t* Data, bool bIOFailure);
+	void OnJoinLobbyComplete(LobbyEnter_t* Data, bool bIOFailure);
 	CCallResult<USteamLobbySubsystem, LobbyEnter_t> OnShadowLobbyEnterCallResult;
 
 	STEAM_CALLBACK(USteamLobbySubsystem, OnLobbyDataUpdateComplete, LobbyDataUpdate_t);
-	STEAM_CALLBACK(USteamLobbySubsystem, OnJoinShadowLobbyRequest, GameLobbyJoinRequested_t);
+	STEAM_CALLBACK(USteamLobbySubsystem, OnJoinLobbyRequest, GameLobbyJoinRequested_t);
 	STEAM_CALLBACK(USteamLobbySubsystem, OnJoinRichPresenceRequest, GameRichPresenceJoinRequested_t);
 
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() class ULobbySubsystem* LobbySubsystem;
 	
-	FSteamLobbyDetails LobbyDetails;
+	FShadowLobbyDetails LobbyDetails;
 	
 public:
 	FORCEINLINE bool InLobby() const { return !LobbyDetails.LobbyID.IsEmpty(); }

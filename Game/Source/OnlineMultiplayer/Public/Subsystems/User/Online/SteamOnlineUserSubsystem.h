@@ -8,6 +8,8 @@
 #pragma warning(push)
 #pragma warning(disable: 4996)
 #pragma warning(disable: 4265)
+#include <vector>
+
 #include "steam_api.h"
 #include "steam_api_common.h"
 #include "steamnetworkingtypes.h"
@@ -17,8 +19,6 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamOnlineUserSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogSteamOnlineUserSubsystem);
-
-#define CHECK_STEAM if(!SteamAPI_Init()){ UE_LOG(LogSteamOnlineUserSubsystem, Error, TEXT("Steam SDK is not initialized.")); return; }
 
 enum EFriendStateChangedType
 {
@@ -47,9 +47,12 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
-	void FetchAvatar(const FString& UserIDString, const TFunction<void>& Callback);
+	void FetchAvatar(const uint64 UserID, const TFunction<void(UTexture2D*)> &Callback);
 
 private:
-	void ProcessAvatar(const CSteamID& SteamUserID);
+	UTexture2D* ProcessAvatar(const CSteamID& SteamUserID);
+	UTexture2D* USteamOnlineUserSubsystem::BufferToTexture2D(std::vector<uint8>& Buffer, uint32 Width, uint32 Height);
 	STEAM_CALLBACK(USteamOnlineUserSubsystem, OnPersonaStateChange, PersonaStateChange_t);
+
+	TMap<uint64, const TFunction<void(UTexture2D*)>> FetchAvatarCallbacks;
 };

@@ -17,8 +17,6 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamLocalUserSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogSteamLocalUserSubsystem);
 
-#define CHECK_STEAM if(!SteamAPI_Init()){ UE_LOG(LogSteamLocalUserSubsystem, Error, TEXT("Steam SDK is not initialized.")); return; }
-
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnEncryptedAppTicketReady, TArray<uint8>);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionTicketReady, TArray<uint8>);
 

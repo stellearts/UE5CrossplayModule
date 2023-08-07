@@ -83,14 +83,5 @@ bool UOnlineUserSubsystem::StoreFriends(TArray<FPlatformUser> PlatformUsers)
 
 void UOnlineUserSubsystem::FetchAvatar(const FString& UserID, const EOS_EExternalAccountType PlatformType, const TFunction<void>& Callback) const
 {
-	if(UserID.IsEmpty())
-	{
-		UE_LOG(LogOnlineUserSubsystem, Warning, TEXT("Invalid User-ID given in UOnlineUserSubsystem::FetchAvatar"));
-		return;
-	}
-
-	if(PlatformType == EOS_EExternalAccountType::EOS_EAT_STEAM)
-	{
-		SteamOnlineUserSubsystem->FetchAvatar(UserID, Callback);
-	}
+	
 }
