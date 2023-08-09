@@ -1,6 +1,7 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Subsystems/User/Online/SteamOnlineUserSubsystem.h"
+#include "Utils/UserUtils.h"
 #include <vector>
 
 #pragma warning(push)
@@ -29,88 +30,89 @@ void USteamOnlineUserSubsystem::FetchAvatar(const uint64 UserID, const TFunction
 	// False when the image is not ready yet. Add callback to the map of callbacks which will be called when ready
 	if (SteamFriends()->RequestUserInformation(SteamUserID, false)) // TODO: Will the OnPersonaStateChange always be triggered when calling this?
 	{
-		if(!FetchAvatarCallbacks.Find(UserID)) FetchAvatarCallbacks.Add(UserID, Callback); // Check if not already in the map
+		FetchAvatarCallbacks.Add(UserID, Callback);
 		return;
 	}
 
-	// Image is ready.
-	Callback(ProcessAvatar(SteamUserID));
-}
-
-UTexture2D* USteamOnlineUserSubsystem::ProcessAvatar(const CSteamID& SteamUserID)
-{
-	// Listen to the callback when the image is not yet ready
-	if (const int ImageData = SteamFriends()->GetLargeFriendAvatar(SteamUserID); ImageData != -1) 
+	// Image should be ready
+	if (const int ImageData = SteamFriends()->GetLargeFriendAvatar(SteamUserID); ImageData) 
 	{
-		uint32 ImageWidth, ImageHeight;
-		if (SteamUtils()->GetImageSize(ImageData, &ImageWidth, &ImageHeight)) 
-		{
-			// Create buffer large enough to hold the image data
-			std::vector<uint8> Buffer(ImageWidth * ImageHeight * 4); // 4 bytes per pixel for RGBA
-
-			// Get the actual image data
-			if (SteamUtils()->GetImageRGBA(ImageData, Buffer.data(), Buffer.size())) 
-			{
-				// Avatar image data is now in the buffer
-				// You can use this data to create a texture, save it to a file, etc.
-				return BufferToTexture2D(Buffer, ImageWidth, ImageHeight); // TODO: Return struct FFetchAvatarResult? or bool bSuccess?
-			}
-		}else
-		{
-			// TODO: Image does not exist here.
-			return nullptr; // test line
-		}
+		Callback(ProcessAvatar(ImageData));
+	}
+	else if(ImageData == 0)
+	{
+		// User has no avatar set.
+		Callback(nullptr);
+	}
+	else if(ImageData == -1)
+	{
+		// Avatar is still not ready yet. (Should not reach)
+		FetchAvatarCallbacks.Add(UserID, Callback);
 	}
 	
-	return nullptr; // test line
 }
 
-UTexture2D* USteamOnlineUserSubsystem::BufferToTexture2D(std::vector<uint8>& Buffer, uint32 Width, uint32 Height)
+UTexture2D* USteamOnlineUserSubsystem::ProcessAvatar(const int& ImageData)
 {
-	if (Buffer.size() != Width * Height * 4)
+	uint32 ImageWidth, ImageHeight;
+	if (SteamUtils()->GetImageSize(ImageData, &ImageWidth, &ImageHeight)) 
 	{
-		// Buffer size is not as expected, handle error
-		return nullptr;
+		// Create buffer large enough to hold the image data
+		std::vector<uint8> Buffer(ImageWidth * ImageHeight * 4); // 4 bytes per pixel for RGBA
+
+		// Get the actual image data
+		if (SteamUtils()->GetImageRGBA(ImageData, Buffer.data(), Buffer.size())) 
+		{
+			// Avatar image data is now in the buffer
+			// You can use this data to create a texture, save it to a file, etc.
+			return FUserUtils::ImageBufferToTexture2D(Buffer, ImageWidth, ImageHeight); // TODO: Return struct FFetchAvatarResult? or bool bSuccess?
+		}
+		
+		return nullptr; // Image does not exist.
 	}
-
-	// Create a new texture
-	UTexture2D* Texture = UTexture2D::CreateTransient(Width, Height, PF_R8G8B8A8);
-	if (!Texture)
-	{
-		// Failed to create texture, handle error
-		return nullptr;
-	}
-
-	// Copy the pixel data to the texture
-	FTexturePlatformData* TexturePlatformData = Texture->GetPlatformData();
-	void* TextureData = TexturePlatformData->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
-	FMemory::Memcpy(TextureData, Buffer.data(), Buffer.size());
-	TexturePlatformData->Mips[0].BulkData.Unlock();
-
-	// Update the texture resource
-	Texture->UpdateResource();
-
-	return Texture;
+	
+	return nullptr; // Image does not exist.
 }
 
 
-void USteamOnlineUserSubsystem::OnPersonaStateChange(PersonaStateChange_t* Data)
+void USteamOnlineUserSubsystem::OnPersonaStateChange(PersonaStateChange_t *Data)
 {
+	if(!Data) return;
 	const CSteamID SteamUserID(Data->m_ulSteamID);
 	const uint64 UserID = SteamUserID.ConvertToUint64();
 
-	// If avatar data changed, process it again.
+	// If avatar data has changed
 	if (Data->m_nChangeFlags & k_EPersonaChangeAvatar)
 	{
-		// If there is a callback in the FetchAvatarCallbacks-map for this ID, then it should be called since the image is now ready
-		if(const TFunction<void(UTexture2D*)>* FetchAvatarCallback = FetchAvatarCallbacks.Find(UserID); FetchAvatarCallback)
+
+		// If there is a callback in this map, then a function is waiting for it to be called.
+		if(FetchAvatarCallbacks.Num())
 		{
+			// If there is a callback for this ID, then it should be called since the image is now ready
+			const TFunction<void(UTexture2D*)>* FetchAvatarCallback = FetchAvatarCallbacks.Find(UserID);
+			if(!FetchAvatarCallback) return;
+			
 			FetchAvatarCallbacks.Remove(UserID);
-			FetchAvatar(UserID, *FetchAvatarCallback);
+			const int ImageData = SteamFriends()->GetLargeFriendAvatar(SteamUserID); // Image should be ready
+			(*FetchAvatarCallback)(ProcessAvatar(ImageData));
 		}
-		else
-		{
-			// TODO: What if a friend changes their avatar? and will it reach this line?	
-		}
+
+		// TODO: Listen for user changes and broadcast a delegate so that other modules can react to the changes.
+		
 	}
+}
+
+
+void USteamOnlineUserSubsystem::OnAvatarImageLoaded(AvatarImageLoaded_t *pParam)
+{
+	if(!pParam || !pParam->m_steamID.IsValid()) return;
+	const CSteamID SteamUserID(pParam->m_steamID);
+	const uint64 UserID = SteamUserID.ConvertToUint64();
+	
+	const TFunction<void(UTexture2D*)>* FetchAvatarCallback = FetchAvatarCallbacks.Find(UserID);
+	if(!FetchAvatarCallback) return;
+	
+	FetchAvatarCallbacks.Remove(UserID);
+	const int ImageData = SteamFriends()->GetLargeFriendAvatar(SteamUserID); // Image should be ready
+	(*FetchAvatarCallback)(ProcessAvatar(ImageData));
 }

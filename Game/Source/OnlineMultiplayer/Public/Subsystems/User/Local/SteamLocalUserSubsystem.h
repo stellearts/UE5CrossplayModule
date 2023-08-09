@@ -54,6 +54,12 @@ private:
 	SteamNetworkingIdentity Identity;
 
 public:
+	void LoadLocalUserDetails(class ULocalUser &LocalUser);
+	
 	FORCEINLINE void SetRichPresence(const char *Key, const char *Value) { SteamFriends()->SetRichPresence(Key, Value); }
 	FORCEINLINE CSteamID GetSteamID() const { return SteamUser()->GetSteamID(); }
+
+private:
+	UPROPERTY()
+	class USteamOnlineUserSubsystem* SteamOnlineUserSubsystem;
 };

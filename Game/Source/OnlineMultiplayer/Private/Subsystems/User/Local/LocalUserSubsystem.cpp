@@ -19,7 +19,7 @@ void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle) return;
 	
-	// TODO: Compatibility for other platforms. Set based on preprocessor directive?
+	// TODO: Compatibility for other platforms. Set based on certain setting in engine?
 	// Set platform
 	LocalUser->SetPlatform(EPlatform::Steam);
 	LocalUser->SetUserID(SteamLocalUserSubsystem->GetSteamID().ConvertToUint64());
@@ -29,7 +29,9 @@ void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	
 	if(LocalUser->GetPlatform() == EPlatform::Steam)
 	{
-		// Get the SteamManager and set necessary callbacks
+		// Get all the information about the local-user.
+		SteamLocalUserSubsystem->LoadLocalUserDetails(*LocalUser);
+		
 		SteamLocalUserSubsystem->OnSessionTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamSessionTicketResponse);
 		SteamLocalUserSubsystem->OnEncryptedAppTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamEncryptedAppTicketResponse);
 	}

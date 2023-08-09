@@ -1,6 +1,8 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #include "Subsystems/User/Local/SteamLocalUserSubsystem.h"
+#include "Subsystems/User/Online/SteamOnlineUserSubsystem.h"
+#include "UserTypes.h"
 
 #pragma warning(push)
 #pragma warning(disable: 4996)
@@ -10,13 +12,12 @@
 #include "steamnetworkingtypes.h"
 #pragma warning(pop)
 
-#include <string>
-
 
 
 void USteamLocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+	SteamOnlineUserSubsystem = Collection.InitializeDependency<USteamOnlineUserSubsystem>();
 }
 
 
@@ -163,3 +164,16 @@ void USteamLocalUserSubsystem::OnSessionTicketResponse(GetAuthSessionTicketRespo
 
 
 // --------------------------------
+
+
+void USteamLocalUserSubsystem::LoadLocalUserDetails(ULocalUser& LocalUser)
+{
+	const uint64 UserID = SteamUser()->GetSteamID().ConvertToUint64();
+	LocalUser.SetUserID(UserID);
+	LocalUser.SetUsername(FString(UTF8_TO_TCHAR(SteamFriends()->GetPersonaName())));
+
+	SteamOnlineUserSubsystem->FetchAvatar(UserID, [&LocalUser](UTexture2D* Avatar)
+	{
+		LocalUser.SetAvatar(Avatar);
+	});
+}

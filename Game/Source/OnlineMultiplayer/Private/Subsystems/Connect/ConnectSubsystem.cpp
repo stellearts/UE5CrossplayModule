@@ -264,7 +264,7 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 							ExternalPlatformUser.Platform = EPlatform::Epic;
 							break;
 						case EOS_EExternalAccountType::EOS_EAT_STEAM:
-							ExternalPlatformUser.Platform = EPlatform::Epic;
+							ExternalPlatformUser.Platform = EPlatform::Steam;
 							break;
 						case EOS_EExternalAccountType::EOS_EAT_PSN:
 							ExternalPlatformUser.Platform = EPlatform::Psn;

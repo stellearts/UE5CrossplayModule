@@ -12,19 +12,17 @@ public class OnlineMultiplayer : ModuleRules
         PublicDependencyModuleNames.AddRange(
             new string[]
                 {
-                    "Engine"
+                    "Engine",
+                    "Core",
+                    "CoreOnline",
+                    "CoreUObject",
+                    "UMG",
+                    "Slate",
+                    "SlateCore"
                 }
         );
 
-        PrivateDependencyModuleNames.AddRange(
-            new string[]
-            {
-                "Core",
-                "CoreOnline",
-                "CoreUObject",
-                "Engine",
-            }
-        );
+        PrivateDependencyModuleNames.AddRange(new string[]{});
         
         
         

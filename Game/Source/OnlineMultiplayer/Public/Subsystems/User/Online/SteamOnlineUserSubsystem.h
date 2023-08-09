@@ -20,23 +20,10 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamOnlineUserSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogSteamOnlineUserSubsystem);
 
-enum EFriendStateChangedType
-{
-	
-};
-
-// struct FFriendStateChangedData
-// {
-// 	std::string UserID;
-// 	EFriendStateChangedType Avatar;
-// };
-//
-// DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFriendStateChanged, const FFriendStateChangedData, Data);
-
 
 
 /**
- * Subsystem for managing Steam friends.
+ * Subsystem for managing Steam users.
  */
 UCLASS(NotBlueprintable)
 class ONLINEMULTIPLAYER_API USteamOnlineUserSubsystem : public UGameInstanceSubsystem
@@ -50,9 +37,9 @@ public:
 	void FetchAvatar(const uint64 UserID, const TFunction<void(UTexture2D*)> &Callback);
 
 private:
-	UTexture2D* ProcessAvatar(const CSteamID& SteamUserID);
-	UTexture2D* USteamOnlineUserSubsystem::BufferToTexture2D(std::vector<uint8>& Buffer, uint32 Width, uint32 Height);
+	UTexture2D* ProcessAvatar(const int& ImageData);
 	STEAM_CALLBACK(USteamOnlineUserSubsystem, OnPersonaStateChange, PersonaStateChange_t);
+	STEAM_CALLBACK(USteamOnlineUserSubsystem, OnAvatarImageLoaded, AvatarImageLoaded_t);
 
 	TMap<uint64, const TFunction<void(UTexture2D*)>> FetchAvatarCallbacks;
 };

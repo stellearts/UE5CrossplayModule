@@ -118,15 +118,6 @@ void USteamFriendsSubsystem::InviteToLobby(const FString& LobbyID, const FString
 {
 	const uint64 SteamLobbyID = FCString::Strtoui64(*LobbyID, nullptr, 10);
 	const uint64 SteamUserID = FCString::Strtoui64(*UserID, nullptr, 10);
-
-	UE_LOG(LogSteamFriendsSubsystem, Warning, TEXT("SteamLobbyID: %s"), *LobbyID);
-	UE_LOG(LogSteamFriendsSubsystem, Warning, TEXT("SteamUserID: %s"), *UserID);
-	
-	if(!SteamLobbyID || !SteamUserID)
-	{
-		UE_LOG(LogSteamFriendsSubsystem, Warning, TEXT("Invalid LobbyID or UserID given in ::InviteToLobby"));
-		return;
-	}
 	
 	if (!SteamMatchmaking()->InviteUserToLobby(SteamLobbyID, SteamUserID))
 	{

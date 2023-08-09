@@ -36,16 +36,16 @@ struct FLobbyDetails
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadOnly)
-	FString LobbyID;
+	FString LobbyID = FString("");
 
 	UPROPERTY(BlueprintReadOnly)
-	FString LobbyOwnerID;
+	FString LobbyOwnerID = FString("");;
 
 	UPROPERTY(BlueprintReadOnly)
 	TMap<FString, UOnlineUser*> MemberList;
 
 	UPROPERTY(BlueprintReadOnly)
-	int32 MaxMembers;
+	int32 MaxMembers = 4;
 };
 
 
@@ -74,8 +74,6 @@ protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 
 public:
-	
-	UFUNCTION(BlueprintCallable, Category = "Online|Lobby")
 	void CreateLobby(const int32 MaxMembers);
 	void JoinLobbyByID(const FString& LobbyID);
 	void JoinLobbyByUserID(const FString& UserID);
@@ -98,15 +96,15 @@ public:
 	FOnCreateLobbyCompleteDelegate OnCreateLobbyCompleteDelegate;
 	FOnJoinLobbyCompleteDelegate OnJoinLobbyCompleteDelegate;
 	
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserJoinedDelegate OnLobbyUserJoinedDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserLeftDelegate OnLobbyUserLeftDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserDisconnectedDelegate OnLobbyUserDisconnectedDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserKickedDelegate OnLobbyUserKickedDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Delegates")
+	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
 
 private:
@@ -119,7 +117,6 @@ private:
 	UPROPERTY() class UPlatformLobbySubsystemBase* LocalPlatformLobbySubsystem;
 	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
-	UPROPERTY() ULocalUser* LocalUser;
 	
 	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
 	UPROPERTY() FLobbyDetails LobbyDetails;
@@ -150,9 +147,11 @@ public:
 	/*
 	 * Shadow lobby
 	 */
+
+	void OnCreateShadowLobbyComplete(const struct FShadowLobbyResult &ShadowLobbyResult);
 	
 	void JoinShadowLobby(const uint64 ShadowLobbyID);
 	void OnJoinShadowLobbyComplete(const uint64 ShadowLobbyID);
 
-	void AddShadowLobbyIDAttribute(const FString& ShadowLobbyID, const TFunction<void(const bool bSuccess)>& OnCompleteCallback);
+	void AddShadowLobbyIDAttribute(const FString& ShadowLobbyID);
 };
