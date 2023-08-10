@@ -20,9 +20,10 @@ enum class ELobbyResultCode : uint8
 	CreateFailure UMETA(DisplayName = "Failed to create lobby."),
 	JoinFailure UMETA(DisplayName = "Failed to join lobby."),
 	SearchFailure UMETA(DisplayName = "Failed to find lobby."),
-	InLobby UMETA(DisplayName = "Already in lobby."),
+	LeaveFailure UMETA(DisplayName = "Failed to leave the lobby."),
 	InvalidLobbyID UMETA(DisplayName = "Invalid Lobby ID."),
 	InvalidUserID UMETA(DisplayName = "Invalid User ID."),
+	InLobby UMETA(DisplayName = "Already in lobby."),
 	EosFailure UMETA(DisplayName = "Some EOS functionality failed."),
 	Unknown UMETA(DisplayName = "Unkown error occurred."),
 };
@@ -46,11 +47,21 @@ struct FLobbyDetails
 
 	UPROPERTY(BlueprintReadOnly)
 	int32 MaxMembers = 4;
+
+	// Sets everything to default values
+	void Reset()
+	{
+		LobbyID = "";
+		LobbyOwnerID = "";
+		MemberList.Empty();
+		MaxMembers = 4;
+	}
 };
 
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCreateLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode);
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, UOnlineUser*, EosUser);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserLeftDelegate);
@@ -77,6 +88,7 @@ public:
 	void CreateLobby(const int32 MaxMembers);
 	void JoinLobbyByID(const FString& LobbyID);
 	void JoinLobbyByUserID(const FString& UserID);
+	void LeaveLobby();
 
 private:
 	void JoinLobbyByHandle(const EOS_HLobbyDetails LobbyDetailsHandle);
@@ -95,6 +107,7 @@ public:
 	// Delegates
 	FOnCreateLobbyCompleteDelegate OnCreateLobbyCompleteDelegate;
 	FOnJoinLobbyCompleteDelegate OnJoinLobbyCompleteDelegate;
+	FOnLeaveLobbyCompleteDelegate OnLeaveLobbyCompleteDelegate;
 	
 	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserJoinedDelegate OnLobbyUserJoinedDelegate;

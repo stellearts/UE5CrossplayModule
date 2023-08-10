@@ -234,6 +234,37 @@ void ULobbySubsystem::JoinLobbyByUserID(const FString& UserID)
 	});
 }
 
+void ULobbySubsystem::LeaveLobby()
+{
+	if(!InLobby())
+	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("Cannot leave a lobby when not in one."));
+		OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::LeaveFailure);
+		return;
+	}
+	
+	EOS_Lobby_LeaveLobbyOptions LeaveLobbyOptions;
+	LeaveLobbyOptions.ApiVersion = EOS_LOBBY_LEAVELOBBY_API_LATEST;
+	LeaveLobbyOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
+	LeaveLobbyOptions.LobbyId = TCHAR_TO_UTF8(*GetLobbyID());
+	
+	EOS_Lobby_LeaveLobby(LobbyHandle, &LeaveLobbyOptions, this, [](const EOS_Lobby_LeaveLobbyCallbackInfo* Data)
+	{
+		ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
+		
+		if(Data->ResultCode == EOS_EResult::EOS_Success)
+		{
+			LobbySubsystem->LobbyDetails.Reset();
+			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success);
+		}
+		else
+		{
+			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to leave the lobby, Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)))
+			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::LeaveFailure);
+		}
+	});
+}
+
 /**
  * Tries to join the lobby using the given handle.
  *

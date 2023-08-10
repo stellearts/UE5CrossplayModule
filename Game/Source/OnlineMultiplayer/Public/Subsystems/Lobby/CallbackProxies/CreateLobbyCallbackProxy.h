@@ -40,7 +40,7 @@ class UCreateLobbyCallbackProxy : public UOnlineBlueprintCallProxyBase
 	FProxyCreateLobbyCompleteDelegate OnFailure;
 	
 	// Create a lobby
-	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"), Category = "Online|Lobby")
+	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"), Category = "Lobby|Functions")
 	static UCreateLobbyCallbackProxy* CreateLobby(UObject* WorldContextObject, const int32 MaxMembers);
 	
 	virtual void Activate() override;

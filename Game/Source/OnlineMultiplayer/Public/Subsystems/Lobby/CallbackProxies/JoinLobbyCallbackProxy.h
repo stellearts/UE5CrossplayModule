@@ -40,7 +40,7 @@ class UJoinLobbyByLobbyIDCallbackProxy : public UOnlineBlueprintCallProxyBase
 	FProxyJoinLobbyCompleteDelegate OnFailure;
 	
 	// Join a lobby by Lobby-ID
-	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"), Category = "Online|Lobby")
+	UFUNCTION(BlueprintCallable, meta = (BlueprintInternalUseOnly = "true", WorldContext = "WorldContextObject"), Category = "Lobby|Functions")
 	static UJoinLobbyByLobbyIDCallbackProxy* JoinLobbyByID(UObject* WorldContextObject, FString LobbyID);
 	
 	virtual void Activate() override;
