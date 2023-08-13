@@ -17,7 +17,7 @@
 // };
 // typedef TMap<EOS_EExternalAccountType, FExternalAccount> FExternalAccountsMap;
 
-UENUM()
+UENUM(BlueprintType)
 enum class EPlatform : uint8
 {
 	Steam UMETA(DisplayName = "Steam"),
@@ -54,8 +54,13 @@ class UOnlineUser : public UObject
 	GENERATED_BODY()
 
 protected:
+	UPROPERTY()
 	FString ProductUserID;
+
+	UPROPERTY()
 	FString EpicAccountID;
+
+	UPROPERTY()
 	EPlatform Platform;
 
 	UPROPERTY()

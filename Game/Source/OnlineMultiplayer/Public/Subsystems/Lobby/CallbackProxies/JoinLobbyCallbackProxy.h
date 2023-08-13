@@ -48,6 +48,7 @@ class UJoinLobbyByLobbyIDCallbackProxy : public UOnlineBlueprintCallProxyBase
 private:
 	FString LobbyID;
 	UPROPERTY() UObject* WorldContextObject;
+	FDelegateHandle JoinLobbyDelegateHandle;
 };
 
 
@@ -72,6 +73,7 @@ class UJoinLobbyByUserIDCallbackProxy : public UOnlineBlueprintCallProxyBase
 	virtual void Activate() override;
 	
 private:
-	FString UserID;
 	UPROPERTY() UObject* WorldContextObject;
+	FString UserID;
+	FDelegateHandle JoinLobbyDelegateHandle;
 };

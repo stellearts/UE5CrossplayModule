@@ -32,7 +32,9 @@ protected:
 
 public:
 	virtual void CreateLobby() override;
-	void JoinLobby(const uint64 SteamLobbyID);
+	virtual void JoinLobby(const FString& LobbyID) override;
+	virtual void LeaveLobby() override;
+	
 
 private:
 	void OnCreateLobbyComplete(LobbyCreated_t* Data, bool bIOFailure);
@@ -47,7 +49,6 @@ private:
 
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() class ULobbySubsystem* LobbySubsystem;
-	
 	FShadowLobbyDetails LobbyDetails;
 	
 public:

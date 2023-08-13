@@ -10,7 +10,7 @@ ULeaveLobbyCallbackProxy::ULeaveLobbyCallbackProxy(const FObjectInitializer& Obj
 {
 }
 
-ULeaveLobbyCallbackProxy* ULeaveLobbyCallbackProxy::LeaveLobby(UObject* WorldContextObject, const int32 MaxMembers)
+ULeaveLobbyCallbackProxy* ULeaveLobbyCallbackProxy::LeaveLobby(UObject* WorldContextObject)
 {
 	ULeaveLobbyCallbackProxy* Proxy = NewObject<ULeaveLobbyCallbackProxy>();
 	Proxy->WorldContextObject = WorldContextObject;
@@ -19,21 +19,18 @@ ULeaveLobbyCallbackProxy* ULeaveLobbyCallbackProxy::LeaveLobby(UObject* WorldCon
 
 void ULeaveLobbyCallbackProxy::Activate()
 {
-	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
-	if(LobbySubsystem)
+	if(!LobbySubsystem) LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
+	if(LobbySubsystem->InLobby())
 	{
-		// Bind the delegate to the callback function
-		FDelegateHandle Handle;
-		auto Callback = [this, LobbySubsystem, &Handle](const ELobbyResultCode LobbyResultCode)
-		{
-			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Remove(Handle);
-			if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(LobbyResultCode);
-			else OnFailure.Broadcast(LobbyResultCode);
-		};
-		Handle = LobbySubsystem->OnLeaveLobbyCompleteDelegate.AddLambda(Callback);
-
-		// Leave the lobby
+		LeaveLobbyDelegateHandle = LobbySubsystem->OnLeaveLobbyCompleteDelegate.AddUObject(this, &ThisClass::OnCompleted);
 		LobbySubsystem->LeaveLobby();
 	}
-	else OnFailure.Broadcast(ELobbyResultCode::Unknown);
+	else OnSuccess.Broadcast(ELobbyResultCode::Success); // Since we are not in a lobby, just return a success.
+}
+
+void ULeaveLobbyCallbackProxy::OnCompleted(const ELobbyResultCode LobbyResultCode)
+{
+	if(LobbySubsystem) LobbySubsystem->OnLeaveLobbyCompleteDelegate.Remove(LeaveLobbyDelegateHandle);
+	if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(LobbyResultCode);
+	else OnFailure.Broadcast(LobbyResultCode);
 }

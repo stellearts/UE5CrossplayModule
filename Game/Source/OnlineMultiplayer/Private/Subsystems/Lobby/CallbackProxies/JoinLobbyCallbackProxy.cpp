@@ -24,12 +24,11 @@ UJoinLobbyByLobbyIDCallbackProxy* UJoinLobbyByLobbyIDCallbackProxy::JoinLobbyByI
 void UJoinLobbyByLobbyIDCallbackProxy::Activate()
 {
 	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
-	if (!LobbyID.IsEmpty() || !LobbySubsystem)
+	if (!LobbyID.IsEmpty())
 	{
-		FDelegateHandle Handle;
-		auto Callback = [this, LobbySubsystem, &Handle](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
+		JoinLobbyDelegateHandle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
 		{
-			LobbySubsystem->OnJoinLobbyCompleteDelegate.Remove(Handle);
+			LobbySubsystem->OnJoinLobbyCompleteDelegate.Remove(JoinLobbyDelegateHandle);
 
 			FJoinLobbyResult Result;
 			Result.LobbyResultCode = LobbyResultCode;
@@ -37,10 +36,7 @@ void UJoinLobbyByLobbyIDCallbackProxy::Activate()
 
 			if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(Result);
 			else OnFailure.Broadcast(Result);
-		};
-		Handle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda(Callback);
-
-		// Try to join a lobby using the ID which will call the callback when done
+		});
 		LobbySubsystem->JoinLobbyByID(LobbyID);
 	}
 	else
@@ -72,13 +68,13 @@ UJoinLobbyByUserIDCallbackProxy* UJoinLobbyByUserIDCallbackProxy::JoinLobbyByUse
 
 void UJoinLobbyByUserIDCallbackProxy::Activate()
 {
+	// TODO: Change handle to member variable delegate, also for createlobbycallbackproxy.
 	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
 	if (!UserID.IsEmpty() || !LobbySubsystem)
 	{
-		FDelegateHandle Handle;
-		auto Callback = [this, LobbySubsystem, &Handle](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
+		JoinLobbyDelegateHandle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
 		{
-			LobbySubsystem->OnJoinLobbyCompleteDelegate.Remove(Handle);
+			LobbySubsystem->OnJoinLobbyCompleteDelegate.Remove(JoinLobbyDelegateHandle);
 
 			FJoinLobbyResult Result;
 			Result.LobbyResultCode = LobbyResultCode;
@@ -86,10 +82,7 @@ void UJoinLobbyByUserIDCallbackProxy::Activate()
 
 			if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(Result);
 			else OnFailure.Broadcast(Result);
-		};
-		Handle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda(Callback);
-
-		// Try to join a lobby using the ID which will call the callback when done
+		});
 		LobbySubsystem->JoinLobbyByUserID(UserID);
 	}
 	else

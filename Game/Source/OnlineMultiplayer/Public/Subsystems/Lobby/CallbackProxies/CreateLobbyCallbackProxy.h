@@ -48,4 +48,5 @@ class UCreateLobbyCallbackProxy : public UOnlineBlueprintCallProxyBase
 private:
 	UPROPERTY() UObject* WorldContextObject;
 	UPROPERTY() int32 MaxMembers;
+	FDelegateHandle CreateLobbyDelegateHandle;
 };

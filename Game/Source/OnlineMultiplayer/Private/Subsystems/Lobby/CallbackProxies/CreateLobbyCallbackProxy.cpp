@@ -23,11 +23,9 @@ void UCreateLobbyCallbackProxy::Activate()
 	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
 	if(LobbySubsystem)
 	{
-		// Bind the delegate to the callback function
-		FDelegateHandle Handle;
-		auto Callback = [this, LobbySubsystem, &Handle](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
+		CreateLobbyDelegateHandle = LobbySubsystem->OnCreateLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
 		{
-			LobbySubsystem->OnCreateLobbyCompleteDelegate.Remove(Handle);
+			LobbySubsystem->OnCreateLobbyCompleteDelegate.Remove(CreateLobbyDelegateHandle);
 			
 			FCreateLobbyResult Result;
 			Result.LobbyResultCode = LobbyResultCode;
@@ -35,10 +33,7 @@ void UCreateLobbyCallbackProxy::Activate()
 
 			if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(Result);
 			else OnFailure.Broadcast(Result);
-		};
-		Handle = LobbySubsystem->OnCreateLobbyCompleteDelegate.AddLambda(Callback);
-
-		// Create a lobby which will call the callback when done
+		});
 		LobbySubsystem->CreateLobby(MaxMembers);
 	}
 	else

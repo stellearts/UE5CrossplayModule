@@ -40,7 +40,7 @@ private:
 	void OnLogoutComplete();
 
 public:
-	void GetUserInfo(TArray<FString>& ProductUserIDList, const TFunction<void(TArray<UOnlineUser*>)> &Callback);
+	void GetOnlineUserDetails(TArray<FString>& ProductUserIDList, const TFunction<void(TArray<UOnlineUser*>)> &Callback);
 
 private:
 	void CreateNewUser();

@@ -164,7 +164,7 @@ void UConnectSubsystem::CheckAccounts()
 
 // --------------------------------------------
 
-struct FGetUserInfoClientData
+struct FGetOnlineUserDetailsClientData
 {
 	UConnectSubsystem* Self;
 	ULocalUserSubsystem* LocalUserSubsystem;
@@ -173,12 +173,13 @@ struct FGetUserInfoClientData
 };
 
 /**
- * Tries to get the external-platforms for each Product-User-ID in the given array.
+ * Tries to get all the details for each given User-ID in the given list.
+ * Callback returns the list of user's with their details.
  *
  * @param ProductUserIDList Product-User-IDs used to get the external-platforms of a user.
  * @param Callback The callback to call upon completion
  */
-void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TFunction<void(TArray<UOnlineUser*> OutUserList)> &Callback)
+void UConnectSubsystem::GetOnlineUserDetails(TArray<FString>& ProductUserIDList, const TFunction<void(TArray<UOnlineUser*> OutUserList)> &Callback)
 {
 	// Convert array UserIDs of type FString to new array of type EOS_ProductUserId
 	TArray<EOS_ProductUserId> ProductUserIDs;
@@ -190,10 +191,10 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 	}
 
 	// Properties needed in the callback
-	FGetUserInfoClientData* GetUserInfoClientData = new FGetUserInfoClientData();
-	GetUserInfoClientData->Self = this;
-	GetUserInfoClientData->UserIDs = ProductUserIDs;
-	GetUserInfoClientData->Callback = Callback;
+	FGetOnlineUserDetailsClientData* ClientData = new FGetOnlineUserDetailsClientData();
+	ClientData->Self = this;
+	ClientData->UserIDs = ProductUserIDs;
+	ClientData->Callback = Callback;
 
 	// Options
 	EOS_Connect_QueryProductUserIdMappingsOptions Options;
@@ -203,19 +204,19 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 	Options.ProductUserIdCount = ProductUserIDs.Num();
 
 	// Get the external account mappings from EOS
-	EOS_Connect_QueryProductUserIdMappings(ConnectHandle, &Options, GetUserInfoClientData, [](const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data)
+	EOS_Connect_QueryProductUserIdMappings(ConnectHandle, &Options, ClientData, [](const EOS_Connect_QueryProductUserIdMappingsCallbackInfo* Data)
 	{
 		// Cast the ClientData back to its type
-		const FGetUserInfoClientData* ClientData = static_cast<FGetUserInfoClientData*>(Data->ClientData);
-		const UConnectSubsystem* ConnectSubsystem = ClientData->Self;
-		const TArray<EOS_ProductUserId>& UserIDs = ClientData->UserIDs;
-		const TFunction<void(TArray<UOnlineUser*> OutUserList)> OnCompleteCallback = ClientData->Callback;
+		const FGetOnlineUserDetailsClientData* CD = static_cast<FGetOnlineUserDetailsClientData*>(Data->ClientData);
+		const UConnectSubsystem* ConnectSubsystem = CD->Self;
+		const TArray<EOS_ProductUserId>& UserIDs = CD->UserIDs;
+		const TFunction<void(TArray<UOnlineUser*> OutUserList)> OnCompleteCallback = CD->Callback;
 		
 		if (Data->ResultCode != EOS_EResult::EOS_Success)
 		{
 			UE_LOG(LogConnectSubsystem, Error, TEXT("EOS_Connect_QueryProductUserIdMappings failed with error code: [%d]"), Data->ResultCode);
 			OnCompleteCallback(TArray<UOnlineUser*>());
-			delete ClientData;
+			delete CD;
 			return;
 		}
 		
@@ -324,13 +325,13 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 		if (TotalLeftToFetch == 0)
 		{
 			OnCompleteCallback(OnlineUsers);
-			delete ClientData;
+			delete CD;
 		}
 		
 		for (auto CurrentUser : OnlineUsers)
 		{
 			USteamOnlineUserSubsystem* SteamOnlineUserSubsystem = ConnectSubsystem->GetGameInstance()->GetSubsystem<USteamOnlineUserSubsystem>();
-			SteamOnlineUserSubsystem->FetchAvatar(FCString::Strtoui64(*CurrentUser->GetUserID(), nullptr, 10), [ClientData, OnCompleteCallback, CurrentUser, OnlineUsers, TotalLeftToFetch, Mutex](UTexture2D* Avatar)
+			SteamOnlineUserSubsystem->FetchAvatar(FCString::Strtoui64(*CurrentUser->GetUserID(), nullptr, 10), [CD, OnCompleteCallback, CurrentUser, OnlineUsers, TotalLeftToFetch, Mutex](UTexture2D* Avatar)
 			{
 				UE_LOG(LogConnectSubsystem, Log, TEXT("Got texture of user."))
 				CurrentUser->SetAvatar(Avatar);
@@ -338,7 +339,7 @@ void UConnectSubsystem::GetUserInfo(TArray<FString>& ProductUserIDList, const TF
 				Mutex->Lock();
 				if(--(*TotalLeftToFetch) == 0)
 				{
-					delete ClientData;
+					delete CD;
 					OnCompleteCallback(OnlineUsers);
 				}
 				Mutex->Unlock();

@@ -40,13 +40,16 @@ struct FLobbyDetails
 	FString LobbyID = FString("");
 
 	UPROPERTY(BlueprintReadOnly)
-	FString LobbyOwnerID = FString("");;
+	FString LobbyOwnerID = FString("");; // TODO: Set when owner leaves lobby.
 
 	UPROPERTY(BlueprintReadOnly)
 	TMap<FString, UOnlineUser*> MemberList;
 
 	UPROPERTY(BlueprintReadOnly)
 	int32 MaxMembers = 4;
+
+	FORCEINLINE void AddMember(UOnlineUser* OnlineUser) { MemberList.Add(OnlineUser->GetProductUserID(), OnlineUser); }
+	FORCEINLINE void RemoveMember(const FString& ProductUserID) { MemberList.Remove(ProductUserID); }
 
 	// Sets everything to default values
 	void Reset()
@@ -63,11 +66,11 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCreateLobbyCompleteDelegate, const ELobb
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode);
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, UOnlineUser*, EosUser);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserLeftDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserDisconnectedDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserKickedDelegate);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLobbyUserPromotedDelegate);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const UOnlineUser* EosUser);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserLeftDelegate, const FString& ProductUserID);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserDisconnectedDelegate, const FString& ProductUserID);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserKickedDelegate, const FString& ProductUserID);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserPromotedDelegate, const FString& ProductUserID);
 
 
 /**
@@ -109,15 +112,10 @@ public:
 	FOnJoinLobbyCompleteDelegate OnJoinLobbyCompleteDelegate;
 	FOnLeaveLobbyCompleteDelegate OnLeaveLobbyCompleteDelegate;
 	
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserJoinedDelegate OnLobbyUserJoinedDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserLeftDelegate OnLobbyUserLeftDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserDisconnectedDelegate OnLobbyUserDisconnectedDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserKickedDelegate OnLobbyUserKickedDelegate;
-	UPROPERTY(BlueprintAssignable, Category = "Lobby|Events")
 	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
 
 private:
@@ -126,14 +124,14 @@ private:
 	EOS_HLobbySearch LobbySearchByLobbyIDHandle;
 	EOS_HLobbySearch LobbySearchByUserIDHandle;
 	EOS_NotificationId OnLobbyMemberStatusUpdateID;
-
-	UPROPERTY() class UPlatformLobbySubsystemBase* LocalPlatformLobbySubsystem;
+	
 	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
+	UPROPERTY() class UPlatformLobbySubsystemBase* LocalPlatformLobbySubsystem;
 	
 	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
 	UPROPERTY() FLobbyDetails LobbyDetails;
-	void LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess, const FString& ErrorCode)> OnCompleteCallback);
+	void LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess)> OnCompleteCallback);
 
 public:
 	// Lobby-Details Getters

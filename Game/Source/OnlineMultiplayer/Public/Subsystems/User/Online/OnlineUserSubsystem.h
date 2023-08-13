@@ -9,11 +9,37 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogOnlineUserSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogOnlineUserSubsystem);
 
-UENUM()
-enum EUsersMapType : uint8
+
+
+UENUM(BlueprintType)
+enum class EGetOnlineUserResultCode : uint8
 {
-	Lobby UMETA(DisplayName="Lobby"),
-	Session	UMETA(DisplayName="Session")
+	Success UMETA(DisplayName = "Success."),
+	Failed UMETA(DisplayName = "Failed to get the details of one or more user's.")
+};
+
+USTRUCT(BlueprintType)
+struct FGetOnlineUserResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	UOnlineUser* OnlineUser;
+
+	UPROPERTY(BlueprintReadOnly)
+	EGetOnlineUserResultCode ResultCode;
+};
+
+USTRUCT(BlueprintType)
+struct FGetOnlineUsersResult
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	TArray<UOnlineUser*> OnlineUsers;
+
+	UPROPERTY(BlueprintReadOnly)
+	EGetOnlineUserResultCode ResultCode;
 };
 
 
@@ -40,26 +66,11 @@ private:
 	UPROPERTY() class USteamLocalUserSubsystem* SteamLocalUserSubsystem;
 	UPROPERTY() class USteamOnlineUserSubsystem* SteamOnlineUserSubsystem;
 	
-	// Online User Maps.
-	UPROPERTY() TMap<FString, FPlatformUser> FriendList;
-	UPROPERTY() TMap<FString, UOnlineUser*> SessionList;
+	UPROPERTY() TMap<FString, UOnlineUser*> CachedOnlineUsers;
 
 public:
-	// Get single
-	FPlatformUser GetFriend(const FString& PlatformUserID);
+	void GetOnlineUser(const FString& ProductUserID, const TFunction<void(FGetOnlineUserResult)> &Callback);
+	void GetOnlineUsers(TArray<FString>& ProductUserIDs,const TFunction<void(FGetOnlineUsersResult)> &Callback);
 	
-	// Get all
-	FORCEINLINE TMap<FString, FPlatformUser> GetFriendList() { return FriendList; }
-
-	// Store single
-	bool StoreFriend(const FPlatformUser& PlatformUser);
-
-	// Store multiple
-	bool StoreFriends(TArray<FPlatformUser> PlatformUsers);
-
-
-	
-	// --- Utilities ---
-	
-	void FetchAvatar(const FString& UserID, EOS_EExternalAccountType PlatformType, const TFunction<void>& Callback) const;
+	void LoadUserAvatar(const UOnlineUser* OnlineUser, const TFunction<void>& Callback);
 };

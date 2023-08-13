@@ -21,8 +21,9 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 
-	// Make sure the local user state subsystem is initialized. Store it as member since I will need to use it often.
+	OnlineUserSubsystem = Collection.InitializeDependency<UOnlineUserSubsystem>();
 	LocalUserSubsystem = Collection.InitializeDependency<ULocalUserSubsystem>();
+	
 	switch (LocalUserSubsystem->GetLocalUser()->GetPlatform())
 	{
 	case EPlatform::Steam:
@@ -236,7 +237,7 @@ void ULobbySubsystem::JoinLobbyByUserID(const FString& UserID)
 
 void ULobbySubsystem::LeaveLobby()
 {
-	if(!InLobby())
+	if(!InLobby() || !LobbyHandle)
 	{
 		UE_LOG(LogLobbySubsystem, Error, TEXT("Cannot leave a lobby when not in one."));
 		OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::LeaveFailure);
@@ -251,15 +252,18 @@ void ULobbySubsystem::LeaveLobby()
 	EOS_Lobby_LeaveLobby(LobbyHandle, &LeaveLobbyOptions, this, [](const EOS_Lobby_LeaveLobbyCallbackInfo* Data)
 	{
 		ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-		
 		if(Data->ResultCode == EOS_EResult::EOS_Success)
 		{
+			// Leave shadow lobby as well.
+			LobbySubsystem->LocalPlatformLobbySubsystem->LeaveLobby();
+
+			// Clear lobby details and broadcast success.
 			LobbySubsystem->LobbyDetails.Reset();
 			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success);
 		}
 		else
 		{
-			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to leave the lobby, Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)))
+			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to leave the lobby. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)))
 			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::LeaveFailure);
 		}
 	});
@@ -293,7 +297,7 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 		LobbySubsystem->SetLobbyID(FString(Data->LobbyId));
 
 		// Load the lobby-information.
-		LobbySubsystem->LoadLobbyDetails(Data->LobbyId, [LobbySubsystem](const bool bSuccess, const FString& ErrorCode)
+		LobbySubsystem->LoadLobbyDetails(Data->LobbyId, [LobbySubsystem](const bool bSuccess)
 		{
 			if(bSuccess)
 			{
@@ -304,7 +308,7 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 			else
 			{
 				// TODO: Leave lobby? Why did this fail?
-				UE_LOG(LogLobbySubsystem, Error, TEXT("::LoadLobbyDetails failed in ::OnJoinLobbyComplete. Error: [%s]"), *ErrorCode);
+				UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to load the details about this lobby."));
 				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success, LobbySubsystem->LobbyDetails); // Change this ELobbyResultCode::JoinFailure to false if there is a case where this may fail, then also leave the lobby.
 			}
 		});
@@ -344,7 +348,6 @@ void ULobbySubsystem::OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Da
 void ULobbySubsystem::OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data)
 {
 	ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-
 	const FString TargetUserID = EosProductIDToString(Data->TargetUserId);
 
 	// Call the appropriate method based on the status.
@@ -377,59 +380,47 @@ void ULobbySubsystem::OnLobbyUserJoined(const FString& TargetUserID)
 	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has joined the lobby"));
 	// TODO: Check if user is a friend. If so, get the friend user and add it to the list of connected users. This prevents api call.
 	
-
-	// Add the user to the list of users to load.
+	// Add the user to the list of users to load
 	UsersToLoad.Add(TargetUserID);
 	
-	// Get the user info, cache it, and then broadcast the delegate containing this new user.
-	UConnectSubsystem* ConnectSubsystem = GetGameInstance()->GetSubsystem<UConnectSubsystem>();
-	TArray<FString> UserIDs = {TargetUserID};
-	ConnectSubsystem->GetUserInfo(UserIDs, [this, TargetUserID](TArray<UOnlineUser*> OnlineUserList)
+	OnlineUserSubsystem->GetOnlineUser(TargetUserID, [this, TargetUserID](const FGetOnlineUserResult Result)
 	{
-		const FString TargetUserIDString = TargetUserID;
-		UOnlineUser* OnlineUser;
-		if(OnlineUserList.Num() == 0)
-		{
-			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to get the info of the user that joined the lobby."));
-			OnlineUser = NewObject<UOnlineUser>();
-			OnlineUser->SetUsername("Unknown");
-			OnlineUser->SetProductUserID(TargetUserID);
-		}
-		else OnlineUser = OnlineUserList[0];
-
-		// Check if user is still in lobby after this fetch.
-		if(UsersToLoad.Contains(TargetUserID))
-		{
-			UOnlineUserSubsystem* OnlineUserSubsystem = GetGameInstance()->GetSubsystem<UOnlineUserSubsystem>();
-			StoreMember(OnlineUser);
-			OnLobbyUserJoinedDelegate.Broadcast(OnlineUser);
-		}
-		else UE_LOG(LogLobbySubsystem, Warning, TEXT("User left before we could load their data. Delegate will not be broadcasted."));
+		// Check if user is still in lobby after this fetch
+		if(UsersToLoad.Contains(TargetUserID)) OnLobbyUserJoinedDelegate.Broadcast(Result.OnlineUser);
+		else UE_LOG(LogLobbySubsystem, Log, TEXT("User left before we could load their data. OnLobbyUserJoinedDelegate will not be broadcasted."));
 	});
 }
 
 void ULobbySubsystem::OnLobbyUserLeft(const FString& TargetUserID)
 {
 	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has left the lobby"));
-	OnLobbyUserLeftDelegate.Broadcast();
+
+	LobbyDetails.RemoveMember(TargetUserID);
+	OnLobbyUserLeftDelegate.Broadcast(TargetUserID); 
 }
 
 void ULobbySubsystem::OnLobbyUserDisconnected(const FString& TargetUserID)
 {
 	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has unexpectedly left the lobby"));
-	OnLobbyUserDisconnectedDelegate.Broadcast();
+
+	LobbyDetails.RemoveMember(TargetUserID);
+	OnLobbyUserDisconnectedDelegate.Broadcast(TargetUserID);
 }
 
 void ULobbySubsystem::OnLobbyUserKicked(const FString& TargetUserID)
 {
 	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been kicked from the lobby"));
-	OnLobbyUserKickedDelegate.Broadcast();
+
+	LobbyDetails.RemoveMember(TargetUserID);
+	OnLobbyUserKickedDelegate.Broadcast(TargetUserID);
 }
 
 void ULobbySubsystem::OnLobbyUserPromoted(const FString& TargetUserID)
 {
-	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been promoted to lobby owner"));
-	OnLobbyUserPromotedDelegate.Broadcast();
+	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has been promoted to Lobby-Owner"));
+
+	LobbyDetails.LobbyOwnerID = TargetUserID;
+	OnLobbyUserPromotedDelegate.Broadcast(TargetUserID);
 }
 
 
@@ -437,12 +428,12 @@ void ULobbySubsystem::OnLobbyUserPromoted(const FString& TargetUserID)
 
 
 /**
- * Gets all the necessary information from a lobby and stores it in memory, this includes its members.
+ * Gets all the necessary information from a lobby and stores it in memory, this includes the members.
  *
  * @param LobbyID The ID of the lobby to get the details from.
  * @param OnCompleteCallback Callback to call when the function completes.
  */
-void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess, const FString& ErrorCode)> OnCompleteCallback)
+void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess)> OnCompleteCallback)
 {
 	const EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions{
 		EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST,
@@ -480,7 +471,8 @@ void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void
 			};
 			const uint32_t MemberCount = EOS_LobbyDetails_GetMemberCount(LobbyDetailsHandle, &MemberCountOptions);
 
-			// Get the Members using the count
+			// Get the Members using the count, excluding the local-user.
+			const FString LocalUserProductID = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>()->GetLocalUser()->GetProductUserID();
 			TArray<FString> MemberProductIDs;
 			for(uint32_t MemberIndex = 0; MemberIndex < MemberCount; MemberIndex++)
 			{
@@ -488,41 +480,42 @@ void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void
 					EOS_LOBBYDETAILS_GETMEMBERBYINDEX_API_LATEST,
 					MemberIndex
 				};
-				const EOS_ProductUserId MemberProductID = EOS_LobbyDetails_GetMemberByIndex(LobbyDetailsHandle, &MemberByIndexOptions);
-				if(MemberProductID) MemberProductIDs.Add(EosProductIDToString(MemberProductID));
+				const FString MemberProductID = EosProductIDToString(EOS_LobbyDetails_GetMemberByIndex(LobbyDetailsHandle, &MemberByIndexOptions));
+				if(!MemberProductID.IsEmpty() && MemberProductID != LocalUserProductID) MemberProductIDs.Add(MemberProductID);
 			}
 			
 			// Get the user-information from all user's in the lobby
-			UConnectSubsystem* ConnectSubsystem = GetGameInstance()->GetSubsystem<UConnectSubsystem>();
-			ConnectSubsystem->GetUserInfo(MemberProductIDs, [this, OnCompleteCallback](const TArray<UOnlineUser*> &UserList)
+			OnlineUserSubsystem->GetOnlineUsers(MemberProductIDs, [this, OnCompleteCallback](const FGetOnlineUsersResult& Result)
 			{
-				if(UserList.IsEmpty())
+				if(Result.ResultCode != EGetOnlineUserResultCode::Success)
 				{
-					OnCompleteCallback(false, FString("Error getting user-info"));
+					OnCompleteCallback(false);
+					return;
 				}
 
 				TMap<FString, UOnlineUser*> OnlineUserMap;
-				for (UOnlineUser* OnlineUser : UserList)
+				for (UOnlineUser* OnlineUser : Result.OnlineUsers)
 				{
 					OnlineUserMap.Add(OnlineUser->GetProductUserID(), OnlineUser);
 				}
-				
+
+				ULocalUser* LocalUser = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>()->GetLocalUser();
+				OnlineUserMap.Add(LocalUser->GetProductUserID(), LocalUser);
 				LobbyDetails.MemberList = OnlineUserMap;
-				// TODO: Check if members have left before we could load their data.
 
 				// Done loading data.
-				OnCompleteCallback(true, FString("Success"));
+				OnCompleteCallback(true);
 			});
 		}
 		else
 		{
 			EOS_LobbyDetails_Info_Release(LobbyInfo);
-			OnCompleteCallback(false, FString("Error when calling EOS_LobbyDetails_CopyInfo in ::LoadLobbyDetails"));
+			OnCompleteCallback(false);
 		}
 	}
 	else
 	{
-		OnCompleteCallback(false, FString("Error when calling EOS_Lobby_CopyLobbyDetailsHandle in ::LoadLobbyDetails"));
+		OnCompleteCallback(false);
 	}
 }
 

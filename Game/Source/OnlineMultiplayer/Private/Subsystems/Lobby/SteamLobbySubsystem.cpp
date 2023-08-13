@@ -53,11 +53,12 @@ void USteamLobbySubsystem::OnCreateLobbyComplete(LobbyCreated_t* Data, bool bIOF
 	if(Data->m_eResult == k_EResultOK)
 	{
 		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Shadow-Lobby created."));
-		OnCreateShadowLobbyCompleteDelegate.ExecuteIfBound(FShadowLobbyResult{LobbyDetails, EShadowLobbyResultCode::Success});
-		
+
 		// Set the lobby data to include the EOS lobby ID. This will allow Steam users to join the EOS lobby through the shadow lobby
 		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", TCHAR_TO_ANSI(*LobbySubsystem->GetLobbyID()));
-		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("EOSLobbyID: %s"), *LobbySubsystem->GetLobbyID());
+		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("SteamMatchmaking()->SetLobbyData: %s"), *LobbySubsystem->GetLobbyID());
+		
+		OnCreateShadowLobbyCompleteDelegate.ExecuteIfBound(FShadowLobbyResult{LobbyDetails, EShadowLobbyResultCode::Success});
 	}
 	else
 	{
@@ -68,27 +69,20 @@ void USteamLobbySubsystem::OnCreateLobbyComplete(LobbyCreated_t* Data, bool bIOF
 
 void USteamLobbySubsystem::OnLobbyDataUpdateComplete(LobbyDataUpdate_t* Data)
 {
-	// TODO: Add some checks to make sure the user wanted to create a lobby and listens for the result.
 	if(Data->m_bSuccess)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("OnLobbyDataUpdateComplete Success"));
-		// OnCreateShadowLobbyCompleteDelegate.ExecuteIfBound(FShadowLobbyResult{LobbyDetails, EShadowLobbyResultCode::Success});
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OnLobbyDataUpdateComplete Fail"));
 		// Should only be false if RequestLobbyData() was called on a lobby that no longer exists, according to the Steam api.
-		// OnCreateShadowLobbyCompleteDelegate.ExecuteIfBound(FShadowLobbyResult{LobbyDetails, EShadowLobbyResultCode::CreateFailure});
+		UE_LOG(LogTemp, Warning, TEXT("OnLobbyDataUpdateComplete Fail"));
 	}
 }
 
-
-// --------------------------------------------
-
-
-void USteamLobbySubsystem::JoinLobby(const uint64 SteamLobbyID)
+void USteamLobbySubsystem::JoinLobby(const FString& LobbyID)
 {
-	const SteamAPICall_t SteamJoinShadowLobbyAPICall = SteamMatchmaking()->JoinLobby(SteamLobbyID);
+	const SteamAPICall_t SteamJoinShadowLobbyAPICall = SteamMatchmaking()->JoinLobby(FCString::Strtoui64(*LobbyID, nullptr, 10));
 	OnShadowLobbyEnterCallResult.Set(SteamJoinShadowLobbyAPICall, this, &USteamLobbySubsystem::OnJoinLobbyComplete);
 }
 
@@ -113,6 +107,12 @@ void USteamLobbySubsystem::OnJoinLobbyComplete(LobbyEnter_t* Data, bool bIOFailu
 		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Failed to join Shadow-lobby. m_EChatRoomEnterResponse: [%i]"), Data->m_EChatRoomEnterResponse);
 }
 
+void USteamLobbySubsystem::LeaveLobby()
+{
+	SteamMatchmaking()->LeaveLobby(FCString::Strtoui64(*LobbyDetails.LobbyID, nullptr, 10));
+	LobbyDetails.Reset();
+}
+
 
 // --------------------------------------------
 
@@ -123,7 +123,7 @@ void USteamLobbySubsystem::OnJoinLobbyComplete(LobbyEnter_t* Data, bool bIOFailu
 void USteamLobbySubsystem::OnJoinLobbyRequest(GameLobbyJoinRequested_t* Data)
 {
 	// TODO: If the game isn't running yet then the game will be automatically launched with the command line parameter +connect_lobby <64-bit lobby Steam ID> instead.
-	if(Data && Data->m_steamIDLobby.IsValid()) JoinLobby(Data->m_steamIDLobby.ConvertToUint64());
+	if(Data && Data->m_steamIDLobby.IsValid()) JoinLobby(FString::Printf(TEXT("%llu"), Data->m_steamIDLobby.ConvertToUint64()));
 }
 
 /**
