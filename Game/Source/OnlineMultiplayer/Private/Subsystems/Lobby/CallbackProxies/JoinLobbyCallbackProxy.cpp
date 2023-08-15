@@ -26,7 +26,7 @@ void UJoinLobbyByLobbyIDCallbackProxy::Activate()
 	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
 	if (!LobbyID.IsEmpty())
 	{
-		JoinLobbyDelegateHandle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
+		JoinLobbyDelegateHandle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const EJoinLobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
 		{
 			LobbySubsystem->OnJoinLobbyCompleteDelegate.Remove(JoinLobbyDelegateHandle);
 
@@ -34,7 +34,7 @@ void UJoinLobbyByLobbyIDCallbackProxy::Activate()
 			Result.LobbyResultCode = LobbyResultCode;
 			Result.LobbyDetails = LobbyDetails;
 
-			if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(Result);
+			if(LobbyResultCode == EJoinLobbyResultCode::Success) OnSuccess.Broadcast(Result);
 			else OnFailure.Broadcast(Result);
 		});
 		LobbySubsystem->JoinLobbyByID(LobbyID);
@@ -42,7 +42,7 @@ void UJoinLobbyByLobbyIDCallbackProxy::Activate()
 	else
 	{
 		FJoinLobbyResult Result;
-        Result.LobbyResultCode = ELobbyResultCode::InvalidLobbyID;
+        Result.LobbyResultCode = EJoinLobbyResultCode::InvalidLobbyID;
         OnFailure.Broadcast(Result);
 	}
 }
@@ -72,7 +72,7 @@ void UJoinLobbyByUserIDCallbackProxy::Activate()
 	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
 	if (!UserID.IsEmpty() || !LobbySubsystem)
 	{
-		JoinLobbyDelegateHandle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
+		JoinLobbyDelegateHandle = LobbySubsystem->OnJoinLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const EJoinLobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
 		{
 			LobbySubsystem->OnJoinLobbyCompleteDelegate.Remove(JoinLobbyDelegateHandle);
 
@@ -80,7 +80,7 @@ void UJoinLobbyByUserIDCallbackProxy::Activate()
 			Result.LobbyResultCode = LobbyResultCode;
 			Result.LobbyDetails = LobbyDetails;
 
-			if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(Result);
+			if(LobbyResultCode == EJoinLobbyResultCode::Success) OnSuccess.Broadcast(Result);
 			else OnFailure.Broadcast(Result);
 		});
 		LobbySubsystem->JoinLobbyByUserID(UserID);
@@ -88,7 +88,7 @@ void UJoinLobbyByUserIDCallbackProxy::Activate()
 	else
 	{
 		FJoinLobbyResult Result;
-		Result.LobbyResultCode = ELobbyResultCode::InvalidUserID;
+		Result.LobbyResultCode = EJoinLobbyResultCode::InvalidUserID;
 		OnFailure.Broadcast(Result);
 	}
 }

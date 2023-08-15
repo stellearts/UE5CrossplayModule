@@ -23,7 +23,7 @@ void UCreateLobbyCallbackProxy::Activate()
 	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
 	if(LobbySubsystem)
 	{
-		CreateLobbyDelegateHandle = LobbySubsystem->OnCreateLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
+		CreateLobbyDelegateHandle = LobbySubsystem->OnCreateLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ECreateLobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
 		{
 			LobbySubsystem->OnCreateLobbyCompleteDelegate.Remove(CreateLobbyDelegateHandle);
 			
@@ -31,7 +31,7 @@ void UCreateLobbyCallbackProxy::Activate()
 			Result.LobbyResultCode = LobbyResultCode;
 			Result.LobbyDetails = LobbyDetails;
 
-			if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(Result);
+			if(LobbyResultCode == ECreateLobbyResultCode::Success) OnSuccess.Broadcast(Result);
 			else OnFailure.Broadcast(Result);
 		});
 		LobbySubsystem->CreateLobby(MaxMembers);
@@ -39,7 +39,7 @@ void UCreateLobbyCallbackProxy::Activate()
 	else
 	{
 		FCreateLobbyResult Result;
-		Result.LobbyResultCode = ELobbyResultCode::Unknown;
+		Result.LobbyResultCode = ECreateLobbyResultCode::Unknown;
 		OnFailure.Broadcast(Result);
 	}
 }

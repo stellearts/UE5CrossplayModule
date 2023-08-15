@@ -9,7 +9,7 @@
 #include "LeaveLobbyCallbackProxy.generated.h"
 
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProxyLeaveLobbyCompleteDelegate, const ELobbyResultCode, ResultCode);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProxyLeaveLobbyCompleteDelegate, const ELeaveLobbyResultCode, ResultCode);
 
 
 
@@ -33,7 +33,7 @@ class ULeaveLobbyCallbackProxy : public UOnlineBlueprintCallProxyBase
 	virtual void Activate() override;
 	
 private:
-	void OnCompleted(const ELobbyResultCode LobbyResultCode);
+	void OnCompleted(const ELeaveLobbyResultCode LobbyResultCode) const;
 
 	// Local variables
 	UPROPERTY()

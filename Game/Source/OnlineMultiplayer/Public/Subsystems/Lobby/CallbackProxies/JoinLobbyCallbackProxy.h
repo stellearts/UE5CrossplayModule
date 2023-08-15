@@ -19,7 +19,7 @@ struct FJoinLobbyResult
 	FLobbyDetails LobbyDetails;
 
 	UPROPERTY(BlueprintReadWrite)
-	ELobbyResultCode LobbyResultCode;
+	EJoinLobbyResultCode LobbyResultCode;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProxyJoinLobbyCompleteDelegate, const FJoinLobbyResult&, Result);

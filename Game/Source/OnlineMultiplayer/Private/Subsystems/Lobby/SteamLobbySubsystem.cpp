@@ -41,6 +41,22 @@ void USteamLobbySubsystem::CreateLobby()
 		UE_LOG(LogSteamLobbySubsystem, Warning, TEXT("Not in an EOS-lobby. Cannot create Shadow-Lobby without being in an EOS-lobby."));
 		return;
 	}
+
+	// If already in a Steam shadow-lobby, check if the EOSLobbyID in the lobby-data is the same to confirm that the lobby is correct.
+	if(InLobby())
+	{
+		const FString EosLobbyID = FString(SteamMatchmaking()->GetLobbyData(FCString::Strtoui64(*LobbyDetails.LobbyID, nullptr, 10), "EOSLobbyID"));
+		if(LobbyDetails.LobbyID != EosLobbyID)
+		{
+			// Leave this lobby and create a new one which will set the correct EOSLobbyID attribute upon completion.
+			UE_LOG(LogSteamLobbySubsystem, Warning, TEXT("The EOS-Lobby-ID of the EOS-Lobby and the EOS-Lobby-ID in the Shadow-Lobby attributes are not the same, leaving current Shadow-Lobby and creating a new one with the correct attributes."))
+			LeaveLobby();
+			CreateLobby();
+		}
+		else UE_LOG(LogSteamLobbySubsystem, Warning, TEXT("Already in a shadow-lobby"));
+		
+		return;
+	}
 	
 	const SteamAPICall_t SteamCreateShadowLobbyAPICall = SteamMatchmaking()->CreateLobby(k_ELobbyTypeFriendsOnly, 4);
 	OnCreateShadowLobbyCallResult.Set(SteamCreateShadowLobbyAPICall, this, &USteamLobbySubsystem::OnCreateLobbyComplete);
@@ -55,8 +71,8 @@ void USteamLobbySubsystem::OnCreateLobbyComplete(LobbyCreated_t* Data, bool bIOF
 		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Shadow-Lobby created."));
 
 		// Set the lobby data to include the EOS lobby ID. This will allow Steam users to join the EOS lobby through the shadow lobby
-		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", TCHAR_TO_ANSI(*LobbySubsystem->GetLobbyID()));
-		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("SteamMatchmaking()->SetLobbyData: %s"), *LobbySubsystem->GetLobbyID());
+		SteamMatchmaking()->SetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID", TCHAR_TO_ANSI(*LobbySubsystem->GetLobbyDetails().LobbyID));
+		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("SteamMatchmaking()->SetLobbyData: %s"), *LobbySubsystem->GetLobbyDetails().LobbyID);
 		
 		OnCreateShadowLobbyCompleteDelegate.ExecuteIfBound(FShadowLobbyResult{LobbyDetails, EShadowLobbyResultCode::Success});
 	}
@@ -89,7 +105,7 @@ void USteamLobbySubsystem::JoinLobby(const FString& LobbyID)
 void USteamLobbySubsystem::OnJoinLobbyComplete(LobbyEnter_t* Data, bool bIOFailure)
 {
 	if(!LocalUserSubsystem || !LobbySubsystem) return;
-	SetLobbyID(Data->m_ulSteamIDLobby); // Will be 0 if failed to join
+	LobbyDetails.LobbyID = Data->m_ulSteamIDLobby == 0 ? FString("") : FString::Printf(TEXT("%llu"), Data->m_ulSteamIDLobby); // '0' if failed to join.
 	
 	if(Data->m_EChatRoomEnterResponse == k_EChatRoomEnterResponseSuccess)
 	{
@@ -111,6 +127,7 @@ void USteamLobbySubsystem::LeaveLobby()
 {
 	SteamMatchmaking()->LeaveLobby(FCString::Strtoui64(*LobbyDetails.LobbyID, nullptr, 10));
 	LobbyDetails.Reset();
+	UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Left the shadow-lobby."));
 }
 
 
@@ -132,39 +149,4 @@ void USteamLobbySubsystem::OnJoinLobbyRequest(GameLobbyJoinRequested_t* Data)
 void USteamLobbySubsystem::OnJoinRichPresenceRequest(GameRichPresenceJoinRequested_t* Data)
 {
 	UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Joining lobby through rich presence..."));
-}
-
-
-// --------------------------------------------
-
-
-TArray<UOnlineUser*> USteamLobbySubsystem::GetMemberList() const
-{
-	TArray<UOnlineUser*> OutMembers;
-	LobbyDetails.MemberList.GenerateValueArray(OutMembers);
-	return OutMembers;
-}
-
-UOnlineUser* USteamLobbySubsystem::GetMember(const FString UserID)
-{
-	UOnlineUser** FoundUser = LobbyDetails.MemberList.Find(UserID);
-	return FoundUser ? *FoundUser : nullptr;
-}
-
-void USteamLobbySubsystem::StoreMember(UOnlineUser* OnlineUser)
-{
-	if(!OnlineUser || OnlineUser->GetUserID().IsEmpty())
-	{
-		UE_LOG(LogSteamLobbySubsystem, Warning, TEXT("Invalid User provided."));
-		return;
-	}
-	LobbyDetails.MemberList.Add(OnlineUser->GetUserID(), OnlineUser);
-}
-
-void USteamLobbySubsystem::StoreMembers(TArray<UOnlineUser*>& OnlineUserList)
-{
-	for (UOnlineUser* OnlineUser : OnlineUserList)
-	{
-		StoreMember(OnlineUser);
-	}
 }

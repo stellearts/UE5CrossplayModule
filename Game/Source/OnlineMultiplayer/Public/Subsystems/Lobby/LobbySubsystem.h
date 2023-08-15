@@ -13,18 +13,37 @@ inline DEFINE_LOG_CATEGORY(LogLobbySubsystem);
 
 
 UENUM(BlueprintType)
-enum class ELobbyResultCode : uint8
+enum class ECreateLobbyResultCode : uint8
 {
 	Success UMETA(DisplayName = "Success."),
-	PresenceLobbyExists UMETA(DisplayName = "Presence lobby already exists."),
-	CreateFailure UMETA(DisplayName = "Failed to create lobby."),
-	JoinFailure UMETA(DisplayName = "Failed to join lobby."),
-	SearchFailure UMETA(DisplayName = "Failed to find lobby."),
-	LeaveFailure UMETA(DisplayName = "Failed to leave the lobby."),
-	InvalidLobbyID UMETA(DisplayName = "Invalid Lobby ID."),
-	InvalidUserID UMETA(DisplayName = "Invalid User ID."),
-	InLobby UMETA(DisplayName = "Already in lobby."),
-	EosFailure UMETA(DisplayName = "Some EOS functionality failed."),
+	Failure UMETA(DisplayName = "Failed to create the lobby."),
+	PresenceLobbyExists UMETA(DisplayName = "A presence-lobby already exists."),
+	InLobby UMETA(DisplayName = "Already in a lobby."),
+	EosFailure UMETA(DisplayName = "Some Epic Online Services SDK functionality failed."),
+	Unknown UMETA(DisplayName = "Unkown error occurred."),
+};
+
+UENUM(BlueprintType)
+enum class EJoinLobbyResultCode : uint8
+{
+	Success UMETA(DisplayName = "Success."),
+	Failure UMETA(DisplayName = "Failed to join the lobby."),
+	PresenceLobbyExists UMETA(DisplayName = "A presence-lobby already exists."),
+	NotFound UMETA(DisplayName = "No lobby was found."),
+	InvalidLobbyID UMETA(DisplayName = "Invalid lobby ID."),
+	InvalidUserID UMETA(DisplayName = "Invalid user ID."),
+	InLobby UMETA(DisplayName = "Already in a lobby."),
+	EosFailure UMETA(DisplayName = "Some Epic Online Services SDK functionality failed."),
+	Unknown UMETA(DisplayName = "Unkown error occurred."),
+};
+
+UENUM(BlueprintType)
+enum class ELeaveLobbyResultCode : uint8
+{
+	Success UMETA(DisplayName = "Success."),
+	NotInLobby UMETA(DisplayName = "Not in a lobby."),
+	Failure UMETA(DisplayName = "Failed to leave the lobby."),
+	EosFailure UMETA(DisplayName = "Some Epic Online Services SDK functionality failed."),
 	Unknown UMETA(DisplayName = "Unkown error occurred."),
 };
 
@@ -62,9 +81,9 @@ struct FLobbyDetails
 };
 
 
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCreateLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyCompleteDelegate, const ELobbyResultCode LobbyResultCode);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCreateLobbyCompleteDelegate, const ECreateLobbyResultCode ResultCode, const FLobbyDetails& LobbyDetails);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinLobbyCompleteDelegate, const EJoinLobbyResultCode ResultCode, const FLobbyDetails& LobbyDetails);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyCompleteDelegate, const ELeaveLobbyResultCode ResultCode);
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const UOnlineUser* EosUser);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserLeftDelegate, const FString& ProductUserID);
@@ -94,7 +113,7 @@ public:
 	void LeaveLobby();
 
 private:
-	void JoinLobbyByHandle(const EOS_HLobbyDetails LobbyDetailsHandle);
+	void JoinLobbyByHandle(const EOS_HLobbyDetails& LobbyDetailsHandle);
 	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
 	
 	static void OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
@@ -129,26 +148,13 @@ private:
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() class UPlatformLobbySubsystemBase* LocalPlatformLobbySubsystem;
 	
-	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
 	UPROPERTY() FLobbyDetails LobbyDetails;
 	void LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess)> OnCompleteCallback);
 
+	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
+
 public:
-	// Lobby-Details Getters
-	FORCEINLINE FString GetLobbyID() const { return LobbyDetails.LobbyID; }
-	FORCEINLINE FString GetLobbyOwnerID() const { return LobbyDetails.LobbyOwnerID; }
-	FORCEINLINE TMap<FString, UOnlineUser*> GetMemberMap() const {return LobbyDetails.MemberList;}
-	TArray<UOnlineUser*> GetMemberList() const;
-	UOnlineUser* GetMember(const EOS_ProductUserId ProductUserID);
-
-	// Lobby-Details Setters
-	FORCEINLINE void SetLobbyDetails(const FLobbyDetails& InLobbyDetails) { LobbyDetails = InLobbyDetails; }
-	FORCEINLINE void SetLobbyID(const FString& InLobbyID) { LobbyDetails.LobbyID = InLobbyID; }
-	FORCEINLINE void SetLobbyOwnerID(const FString& InLobbyOwnerID) { LobbyDetails.LobbyOwnerID = InLobbyOwnerID; }
-	void StoreMember(UOnlineUser* OnlineUser);
-	void StoreMembers(TArray<UOnlineUser*> &OnlineUserList);
-
-	// Helpers
+	FORCEINLINE const FLobbyDetails& GetLobbyDetails() const { return LobbyDetails; }
 	FORCEINLINE bool InLobby() const { return !LobbyDetails.LobbyID.IsEmpty(); }
 
 

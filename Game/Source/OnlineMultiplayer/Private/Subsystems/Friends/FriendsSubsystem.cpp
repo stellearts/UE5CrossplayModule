@@ -49,7 +49,7 @@ void UFriendsSubsystem::InviteToLobby(const FPlatformUser& PlatformUser) const
 
 	// Check platform and get shadow-lobby id of that platform.
 	const USteamLobbySubsystem* SteamLobbySubsystem = GetGameInstance()->GetSubsystem<USteamLobbySubsystem>();
-	const FString ShadowLobbyID = SteamLobbySubsystem->GetLobbyID();
+	const FString ShadowLobbyID = SteamLobbySubsystem->GetLobbyDetails().LobbyID;
 	SteamFriendsSubsystem->InviteToLobby(ShadowLobbyID, PlatformUser.UserID);
 }
 

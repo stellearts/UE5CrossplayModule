@@ -49,21 +49,10 @@ private:
 
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() class ULobbySubsystem* LobbySubsystem;
-	FShadowLobbyDetails LobbyDetails;
 	
+	FShadowLobbyDetails LobbyDetails;
+
 public:
+	FORCEINLINE const FShadowLobbyDetails& GetLobbyDetails() const { return LobbyDetails; }
 	FORCEINLINE bool InLobby() const { return !LobbyDetails.LobbyID.IsEmpty(); }
-
-	// Lobby-Details Getters
-	FORCEINLINE FString GetLobbyID() const { return LobbyDetails.LobbyID; }
-	FORCEINLINE FString GetLobbyOwnerID() const { return LobbyDetails.LobbyOwnerID; }
-	FORCEINLINE TMap<FString, UOnlineUser*> GetMemberMap() const {return LobbyDetails.MemberList;}
-	TArray<UOnlineUser*> GetMemberList() const;
-	UOnlineUser* GetMember(const FString UserID);
-
-	// Lobby-Details Setters
-	FORCEINLINE void SetLobbyID(const uint64 InLobbyID) { LobbyDetails.LobbyID = FString::Printf(TEXT("%llu"), InLobbyID); }
-	FORCEINLINE void SetLobbyOwnerID(const FString& InLobbyOwnerID) { LobbyDetails.LobbyOwnerID = InLobbyOwnerID; }
-	void StoreMember(UOnlineUser* OnlineUser);
-	void StoreMembers(TArray<UOnlineUser*> &OnlineUserList);
 };

@@ -51,7 +51,7 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 {
 	if(InLobby())
 	{
-		OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::InLobby, LobbyDetails);
+		OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::InLobby, LobbyDetails);
 		return;
 	}
 
@@ -99,7 +99,7 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 			LobbySubsystem->LobbyDetails.LobbyOwnerID = LocalUser->GetProductUserID();
 			LobbySubsystem->LobbyDetails.MemberList = TMap<FString, UOnlineUser*>();
 			LobbySubsystem->LobbyDetails.MaxMembers = ClientData->MaxMembers;
-			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success, LobbySubsystem->LobbyDetails);
+			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::Success, LobbySubsystem->LobbyDetails);
 
 			UE_LOG(LogTemp, Log, TEXT("LobbyDetails.LobbyID: %s"), *LobbySubsystem->LobbyDetails.LobbyID)
 			
@@ -111,12 +111,12 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 		else if(Data->ResultCode == EOS_EResult::EOS_Lobby_PresenceLobbyExists)
 		{
 			// If there already is an existing 'Presence Lobby' you joined. You can then join this lobby using your User-ID
-			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ELobbyResultCode::PresenceLobbyExists, LobbySubsystem->LobbyDetails);
+			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::PresenceLobbyExists, LobbySubsystem->LobbyDetails);
 		}
 		else
 		{
 			UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to create Lobby. Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
-			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Unknown, LobbySubsystem->LobbyDetails);
+			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::Unknown, LobbySubsystem->LobbyDetails);
 		}
 		
 		delete ClientData;
@@ -165,9 +165,6 @@ void ULobbySubsystem::JoinLobbyByID(const FString& LobbyID)
 			{
 				// Try to join the lobby using the details handle.
 				LobbySubsystem->JoinLobbyByHandle(LobbyDetailsHandle);
-
-				// Release the lobby details handle.
-				EOS_LobbyDetails_Release(LobbyDetailsHandle);
 			}
 			else
 				UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to retrieve the lobby details."));
@@ -187,7 +184,7 @@ void ULobbySubsystem::JoinLobbyByUserID(const FString& UserID)
 	if(EOS_Lobby_CreateLobbySearch(LobbyHandle, &LobbySearchOptions, &LobbySearchByUserIDHandle) != EOS_EResult::EOS_Success)
 	{
 		UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create lobby search handle."));
-		OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::SearchFailure, LobbyDetails);
+		OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::EosFailure, LobbyDetails);
 		return;
 	}
 
@@ -217,20 +214,22 @@ void ULobbySubsystem::JoinLobbyByUserID(const FString& UserID)
 			if(SearchResultCode == EOS_EResult::EOS_Success)
 			{
 				LobbySubsystem->JoinLobbyByHandle(LobbyDetailsHandle);
-
-				// Release the handle after using it
-				EOS_LobbyDetails_Release(LobbyDetailsHandle);
 			}
 			else
 			{
-				UE_LOG(LogLobbySubsystem, Warning, TEXT("EOS_LobbySearch_CopySearchResultByIndex Failed with Result Code: [%s]"), *FString(EOS_EResult_ToString(SearchResultCode)));
-				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::SearchFailure, LobbySubsystem->LobbyDetails);
+				UE_LOG(LogLobbySubsystem, Warning, TEXT("EOS_LobbySearch_CopySearchResultByIndex Failed. Result-Code: [%s]"), *FString(EOS_EResult_ToString(SearchResultCode)));
+				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::Unknown, LobbySubsystem->LobbyDetails);
 			}
+		}
+		else if(Data->ResultCode == EOS_EResult::EOS_NotFound)
+		{
+			UE_LOG(LogLobbySubsystem, Log, TEXT("No lobbies found."));
+			LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::NotFound, LobbySubsystem->LobbyDetails);
 		}
 		else
 		{
-			UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to find a lobby with Result Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
-			LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::SearchFailure, LobbySubsystem->LobbyDetails);
+			UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to find a lobby. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
+			LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::Unknown, LobbySubsystem->LobbyDetails);
 		}
 	});
 }
@@ -240,14 +239,14 @@ void ULobbySubsystem::LeaveLobby()
 	if(!InLobby() || !LobbyHandle)
 	{
 		UE_LOG(LogLobbySubsystem, Error, TEXT("Cannot leave a lobby when not in one."));
-		OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::LeaveFailure);
+		OnLeaveLobbyCompleteDelegate.Broadcast(ELeaveLobbyResultCode::NotInLobby);
 		return;
 	}
 	
 	EOS_Lobby_LeaveLobbyOptions LeaveLobbyOptions;
 	LeaveLobbyOptions.ApiVersion = EOS_LOBBY_LEAVELOBBY_API_LATEST;
 	LeaveLobbyOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
-	LeaveLobbyOptions.LobbyId = TCHAR_TO_UTF8(*GetLobbyID());
+	LeaveLobbyOptions.LobbyId = TCHAR_TO_UTF8(*LobbyDetails.LobbyID);
 	
 	EOS_Lobby_LeaveLobby(LobbyHandle, &LeaveLobbyOptions, this, [](const EOS_Lobby_LeaveLobbyCallbackInfo* Data)
 	{
@@ -259,12 +258,12 @@ void ULobbySubsystem::LeaveLobby()
 
 			// Clear lobby details and broadcast success.
 			LobbySubsystem->LobbyDetails.Reset();
-			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success);
+			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELeaveLobbyResultCode::Success);
 		}
 		else
 		{
 			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to leave the lobby. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)))
-			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELobbyResultCode::LeaveFailure);
+			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELeaveLobbyResultCode::Failure);
 		}
 	});
 }
@@ -272,9 +271,9 @@ void ULobbySubsystem::LeaveLobby()
 /**
  * Tries to join the lobby using the given handle.
  *
- * Remember to release the LobbyDetailsHandle after calling this function.
+ * Will release the given handle from memory after completion.
  */
-void ULobbySubsystem::JoinLobbyByHandle(const EOS_HLobbyDetails LobbyDetailsHandle)
+void ULobbySubsystem::JoinLobbyByHandle(const EOS_HLobbyDetails& LobbyDetailsHandle)
 {
 	EOS_Lobby_JoinLobbyOptions JoinOptions;
 	JoinOptions.ApiVersion = EOS_LOBBY_JOINLOBBY_API_LATEST;
@@ -284,6 +283,9 @@ void ULobbySubsystem::JoinLobbyByHandle(const EOS_HLobbyDetails LobbyDetailsHand
 	JoinOptions.LocalRTCOptions = nullptr;
     
 	EOS_Lobby_JoinLobby(LobbyHandle, &JoinOptions, this, &ULobbySubsystem::OnJoinLobbyComplete);
+
+	// Release the handle after using it
+	EOS_LobbyDetails_Release(LobbyDetailsHandle);
 }
 
 void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data)
@@ -294,22 +296,23 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 	if(Data->ResultCode == EOS_EResult::EOS_Success || Data->ResultCode == EOS_EResult::EOS_Lobby_PresenceLobbyExists)
 	{
 		// Successfully joined the lobby, or we were already part of the lobby.
-		LobbySubsystem->SetLobbyID(FString(Data->LobbyId));
+		LobbySubsystem->LobbyDetails.LobbyID = FString(Data->LobbyId);
 
 		// Load the lobby-information.
 		LobbySubsystem->LoadLobbyDetails(Data->LobbyId, [LobbySubsystem](const bool bSuccess)
 		{
 			if(bSuccess)
 			{
-				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success, LobbySubsystem->LobbyDetails);
+				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::Success, LobbySubsystem->LobbyDetails);
 				
 				// TODO: Check if shadow lobby exist, if not create one.
 			}
 			else
 			{
-				// TODO: Leave lobby? Why did this fail?
+				// TODO: Why did this fail?
 				UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to load the details about this lobby."));
-				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::Success, LobbySubsystem->LobbyDetails); // Change this ELobbyResultCode::JoinFailure to false if there is a case where this may fail, then also leave the lobby.
+				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::Failure, LobbySubsystem->LobbyDetails); // Change this ELobbyResultCode::JoinFailure to false if there is a case where this may fail, then also leave the lobby.
+				LobbySubsystem->LeaveLobby();
 			}
 		});
 	}
@@ -317,7 +320,7 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 	{
 		// TODO: EOS_NotFound
 		UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to join lobby. ResultCode: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
-		LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(ELobbyResultCode::JoinFailure, LobbySubsystem->LobbyDetails);
+		LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::Failure, LobbySubsystem->LobbyDetails);
 	}
 }
 
@@ -519,55 +522,6 @@ void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void
 	}
 }
 
-/**
- * Returns an array of current members in the lobby.
- */
-TArray<UOnlineUser*> ULobbySubsystem::GetMemberList() const
-{
-	TArray<UOnlineUser*> OutMembers;
-	LobbyDetails.MemberList.GenerateValueArray(OutMembers);
-	return OutMembers;
-}
-
-/**
- * Returns a lobby-member of given ProductUserID if in lobby.
- *
- * @param ProductUserID The Product-User-ID of the member to find.
- */
-UOnlineUser* ULobbySubsystem::GetMember(const EOS_ProductUserId ProductUserID)
-{
-	UOnlineUser** FoundUser = LobbyDetails.MemberList.Find(FString(EosProductIDToString(ProductUserID)));
-	return FoundUser ? *FoundUser : nullptr;
-}
-
-/**
- * Tries to store the given OnlineUser in the member-list.
- *
- * @param OnlineUser The Eos-User to store in the member-list.
- */
-void ULobbySubsystem::StoreMember(UOnlineUser* OnlineUser)
-{
-	if(!OnlineUser || OnlineUser->GetProductUserID().IsEmpty())
-	{
-		UE_LOG(LogLobbySubsystem, Warning, TEXT("Invalid User provided."));
-		return;
-	}
-	LobbyDetails.MemberList.Add(OnlineUser->GetProductUserID(), OnlineUser);
-}
-
-/**
- * Tries to store the given list of user's in the member-list.
- *
- * @param OnlineUserList The Eos-Users to store in the member-list.
- */
-void ULobbySubsystem::StoreMembers(TArray<UOnlineUser*> &OnlineUserList)
-{
-	for (UOnlineUser* OnlineUser : OnlineUserList)
-	{
-		StoreMember(OnlineUser);
-	}
-}
-
 
 // -------------------------------------------- Shadow Lobby -------------------------------------------- //
 
@@ -588,10 +542,6 @@ void ULobbySubsystem::JoinShadowLobby(const uint64 ShadowLobbyId)
 void ULobbySubsystem::OnJoinShadowLobbyComplete(const uint64 ShadowLobbyId)
 {
 }
-
-
-// --------------------------------------------
-
 
 /**
  * Creates a lobby modification where the shadow lobby's ID attribute is added.

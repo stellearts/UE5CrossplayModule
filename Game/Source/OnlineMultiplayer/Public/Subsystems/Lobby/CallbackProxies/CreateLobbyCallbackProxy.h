@@ -19,7 +19,7 @@ struct FCreateLobbyResult
 	FLobbyDetails LobbyDetails;
 
 	UPROPERTY(BlueprintReadWrite)
-	ELobbyResultCode LobbyResultCode;
+	ECreateLobbyResultCode LobbyResultCode;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FProxyCreateLobbyCompleteDelegate, const FCreateLobbyResult&, Result);

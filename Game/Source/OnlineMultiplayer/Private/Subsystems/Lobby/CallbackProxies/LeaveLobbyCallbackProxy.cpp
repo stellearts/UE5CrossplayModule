@@ -25,12 +25,12 @@ void ULeaveLobbyCallbackProxy::Activate()
 		LeaveLobbyDelegateHandle = LobbySubsystem->OnLeaveLobbyCompleteDelegate.AddUObject(this, &ThisClass::OnCompleted);
 		LobbySubsystem->LeaveLobby();
 	}
-	else OnSuccess.Broadcast(ELobbyResultCode::Success); // Since we are not in a lobby, just return a success.
+	else OnSuccess.Broadcast(ELeaveLobbyResultCode::Success); // Since we are not in a lobby, just return a success.
 }
 
-void ULeaveLobbyCallbackProxy::OnCompleted(const ELobbyResultCode LobbyResultCode)
+void ULeaveLobbyCallbackProxy::OnCompleted(const ELeaveLobbyResultCode LobbyResultCode) const
 {
 	if(LobbySubsystem) LobbySubsystem->OnLeaveLobbyCompleteDelegate.Remove(LeaveLobbyDelegateHandle);
-	if(LobbyResultCode == ELobbyResultCode::Success) OnSuccess.Broadcast(LobbyResultCode);
+	if(LobbyResultCode == ELeaveLobbyResultCode::Success) OnSuccess.Broadcast(LobbyResultCode);
 	else OnFailure.Broadcast(LobbyResultCode);
 }
