@@ -36,11 +36,15 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle) return;
 	LobbyHandle = EOS_Platform_GetLobbyInterface(PlatformHandle);
+
+	EOS_Lobby_AddNotifyLobbyUpdateReceivedOptions LobbyUpdateReceivedOptions;
+	LobbyUpdateReceivedOptions.ApiVersion = EOS_LOBBY_ADDNOTIFYLOBBYUPDATERECEIVED_API_LATEST;
+	OnLobbyUpdateNotification = EOS_Lobby_AddNotifyLobbyUpdateReceived(LobbyHandle, &LobbyUpdateReceivedOptions, this, &ULobbySubsystem::OnLobbyUpdate);
 	
 	// Register lobby member status update callback.
-	EOS_Lobby_AddNotifyLobbyMemberStatusReceivedOptions Options;
-	Options.ApiVersion = EOS_LOBBY_ADDNOTIFYLOBBYMEMBERSTATUSRECEIVED_API_LATEST;
-	OnLobbyMemberStatusUpdateID = EOS_Lobby_AddNotifyLobbyMemberStatusReceived(LobbyHandle, &Options, this, &ULobbySubsystem::OnLobbyMemberStatusUpdate);
+	EOS_Lobby_AddNotifyLobbyMemberStatusReceivedOptions LobbyMemberStatusReceivedOptions;
+	LobbyMemberStatusReceivedOptions.ApiVersion = EOS_LOBBY_ADDNOTIFYLOBBYMEMBERSTATUSRECEIVED_API_LATEST;
+	OnLobbyMemberStatusNotification = EOS_Lobby_AddNotifyLobbyMemberStatusReceived(LobbyHandle, &LobbyMemberStatusReceivedOptions, this, &ULobbySubsystem::OnLobbyMemberStatusUpdate);
 }
 
 
@@ -123,10 +127,6 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 		// End Lambda.
     });
 }
-
-
-// --------------------------------------------
-
 
 void ULobbySubsystem::JoinLobbyByID(const FString& LobbyID)
 {
@@ -328,22 +328,157 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 // --------------------------------------------
 
 
-void ULobbySubsystem::OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Data)
+/*
+ * Remember to release the handle after using it with EOS_LobbyDetails_Release().
+ */
+EOS_HLobbyDetails ULobbySubsystem::GetLobbyDetailsHandle()
 {
-	const ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-	if(!LobbySubsystem) return;
+	EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions;
+	LobbyDetailsOptions.ApiVersion = EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST;
+	LobbyDetailsOptions.LobbyId = TCHAR_TO_UTF8(*LobbyDetails.LobbyID);
+	LobbyDetailsOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	
-	if(Data->ResultCode == EOS_EResult::EOS_Success)
-	{
-		UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby updated successfully"));
-	}
-	else if(Data->ResultCode == EOS_EResult::EOS_TimedOut)
-	{
-		// Could retry here
-	}
-	else
-		UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to update Lobby. Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
+	EOS_HLobbyDetails LobbyDetailsHandle;
+	if(EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle) == EOS_EResult::EOS_Success) return LobbyDetailsHandle;
+	
+	UE_LOG(LogLobbySubsystem, Log, TEXT("Failed to get the Lobby-Details-Handle."));
+	return nullptr;
 }
+
+void SetAttributeData(EOS_Lobby_AttributeData& Attribute, const FString& Key, const FString& Value) 
+{
+	Attribute.Key = TCHAR_TO_ANSI(*Key);
+	Attribute.Value.AsUtf8 = TCHAR_TO_ANSI(*Value);
+	Attribute.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING;
+}
+
+void SetAttributeData(EOS_Lobby_AttributeData& Attribute, const FString& Key, const bool Value) 
+{
+	Attribute.Key = TCHAR_TO_ANSI(*Key);
+	Attribute.Value.AsBool = Value;
+	Attribute.ValueType = EOS_ELobbyAttributeType::EOS_AT_BOOLEAN;
+}
+
+void SetAttributeData(EOS_Lobby_AttributeData& Attribute, const FString& Key, const int32 Value) 
+{
+	Attribute.Key = TCHAR_TO_ANSI(*Key);
+	Attribute.Value.AsInt64 = Value;
+	Attribute.ValueType = EOS_ELobbyAttributeType::EOS_AT_INT64;
+}
+
+template <typename T>
+void ULobbySubsystem::SetLobbyAttribute(const FString& Key, const T& Value)
+{
+	if(LobbyDetails.LobbyOwnerID != LocalUserSubsystem->GetLocalUser()->GetProductUserID())
+	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("Only the lobby owner can set its attributes."));
+		return;
+	}
+	
+	EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
+	UpdateLobbyModificationOptions.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST;
+	UpdateLobbyModificationOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
+	UpdateLobbyModificationOptions.LobbyId = TCHAR_TO_ANSI(*LobbyDetails.LobbyID);
+
+	EOS_HLobbyModification LobbyModificationHandle;
+	if (EOS_EResult Result = EOS_Lobby_UpdateLobbyModification(LobbyHandle, &UpdateLobbyModificationOptions, &LobbyModificationHandle); Result == EOS_EResult::EOS_Success)
+	{
+		// Set the attribute data based on the type passed in.
+		EOS_Lobby_AttributeData Attribute;
+		Attribute.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST;
+		SetAttributeData(Attribute, Key, Value);
+
+		EOS_LobbyModification_AddAttributeOptions AttributeOptions;
+		AttributeOptions.ApiVersion = EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST;
+		AttributeOptions.Attribute = &Attribute;
+		AttributeOptions.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
+
+		// Add the change to the modification-handle.
+		if (Result = EOS_LobbyModification_AddAttribute(LobbyModificationHandle, &AttributeOptions); Result == EOS_EResult::EOS_Success)
+		{
+			// Update the lobby with the handle
+			EOS_Lobby_UpdateLobbyOptions UpdateLobbyOptions;
+			UpdateLobbyOptions.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST;
+			UpdateLobbyOptions.LobbyModificationHandle = LobbyModificationHandle;
+			EOS_Lobby_UpdateLobby(LobbyHandle, &UpdateLobbyOptions, nullptr, [](const EOS_Lobby_UpdateLobbyCallbackInfo* Data)
+			{
+				if(Data->ResultCode == EOS_EResult::EOS_Success) UE_LOG(LogLobbySubsystem, Log, TEXT("Attribute successfully added."))
+				else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to update the lobby with the new attribute. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
+			});
+		}
+		else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to add the attribute to the lobby. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
+		
+		EOS_LobbyModification_Release(LobbyModificationHandle);
+	}
+	else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create the lobby-modification-handle for setting the attribute. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
+}
+
+void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data)
+{
+	ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
+	UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby update received."))
+	
+	const EOS_HLobbyDetails LobbyDetailsHandle = LobbySubsystem->GetLobbyDetailsHandle();
+	if(!LobbyDetailsHandle)
+	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("Invalid LobbyDetailsHandle received from ::GetLobbyDetailsHandle"));
+		return;
+	}
+
+	// Get the attribute count.
+	EOS_LobbyDetails_GetAttributeCountOptions AttributeCountOptions;
+	AttributeCountOptions.ApiVersion = EOS_LOBBYDETAILS_GETATTRIBUTECOUNT_API_LATEST;
+	const uint32_t AttributeCount = EOS_LobbyDetails_GetAttributeCount(LobbyDetailsHandle, &AttributeCountOptions);
+
+	// Loop over all attributes and check if there was a change.
+	FLobbyAttributes NewLobbyAttributes = LobbySubsystem->LobbyDetails.LobbyAttributes; // Copy
+	for (uint32_t AttributeIndex = 0; AttributeIndex < AttributeCount; ++AttributeIndex)
+	{
+		EOS_LobbyDetails_CopyAttributeByIndexOptions AttributeOptions;
+		AttributeOptions.ApiVersion = EOS_LOBBYDETAILS_COPYATTRIBUTEBYINDEX_API_LATEST;
+		AttributeOptions.AttrIndex = AttributeIndex;
+		
+		EOS_Lobby_Attribute* Attribute;
+		const EOS_EResult CopiedAttributeResult = EOS_LobbyDetails_CopyAttributeByIndex(LobbyDetailsHandle, &AttributeOptions, &Attribute);
+		if (CopiedAttributeResult == EOS_EResult::EOS_Success && Attribute && Attribute->Data)
+		{
+
+			// Check all possible values for changes.
+			FString Key = ANSI_TO_TCHAR(Attribute->Data->Key);
+			if (Key == "GameStarted" && Attribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_BOOLEAN)
+			{
+				if (const bool GameStarted = (Attribute->Data->Value.AsBool == EOS_TRUE); GameStarted != NewLobbyAttributes.GameStarted)
+				{
+					NewLobbyAttributes.GameStarted = GameStarted;
+					GameStarted ? LobbySubsystem->OnGameStartDelegate.Broadcast() : LobbySubsystem->OnGameEndDelegate.Broadcast();
+				}
+			}
+			else if (Key == "SteamLobbyID" && Attribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING)
+			{
+				if (const FString SteamLobbyID = Attribute->Data->Value.AsUtf8; SteamLobbyID != NewLobbyAttributes.SteamLobbyID)
+				{
+					NewLobbyAttributes.SteamLobbyID = SteamLobbyID;
+					// TODO: Do something with it?
+				}
+			}
+			// Add more checks if needed...
+			
+		}
+
+		// Release from memory
+		EOS_Lobby_Attribute_Release(Attribute);
+	}
+
+	// Update the Lobby-Attributes
+	LobbySubsystem->LobbyDetails.LobbyAttributes = NewLobbyAttributes;
+
+	// Release from memory
+	EOS_LobbyDetails_Release(LobbyDetailsHandle);
+}
+
+
+// --------------------------------------------
+
 
 /**
  * Called when a user joins/leaves/disconnects is kicked/promoted or the lobby has been closed.
@@ -438,14 +573,13 @@ void ULobbySubsystem::OnLobbyUserPromoted(const FString& TargetUserID)
  */
 void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess)> OnCompleteCallback)
 {
-	const EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions{
-		EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST,
-		LobbyID,
-		EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID())
-	};
+	EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions;
+	LobbyDetailsOptions.ApiVersion = EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST;
+	LobbyDetailsOptions.LobbyId = LobbyID;
+	LobbyDetailsOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
+	
 	EOS_HLobbyDetails LobbyDetailsHandle;
 	EOS_EResult Result = EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle);
-	
 	if(Result == EOS_EResult::EOS_Success)
 	{
 		// Successfully got the LobbyDetails-Handle
@@ -555,8 +689,7 @@ void ULobbySubsystem::AddShadowLobbyIDAttribute(const FString& ShadowLobbyID)
  
 	// Create the lobby modification handle.
 	EOS_HLobbyModification LobbyModificationHandle;
-    EOS_EResult Result = EOS_Lobby_UpdateLobbyModification(LobbyHandle, &UpdateLobbyModificationOptions, &LobbyModificationHandle);
-    if (Result == EOS_EResult::EOS_Success)
+    if (EOS_EResult Result = EOS_Lobby_UpdateLobbyModification(LobbyHandle, &UpdateLobbyModificationOptions, &LobbyModificationHandle); Result == EOS_EResult::EOS_Success)
     {
         // Create the ShadowLobbyID attribute and set it to the shadow lobby ID.
     	EOS_Lobby_AttributeData ShadowLobbyIDAttribute;
@@ -579,8 +712,7 @@ void ULobbySubsystem::AddShadowLobbyIDAttribute(const FString& ShadowLobbyID)
         ShadowLobbyIDAttributeOptions.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
  
     	// Add the change to the lobby modification handle.
-        Result = EOS_LobbyModification_AddAttribute(LobbyModificationHandle, &ShadowLobbyIDAttributeOptions);
-        if (Result == EOS_EResult::EOS_Success)
+        if (Result = EOS_LobbyModification_AddAttribute(LobbyModificationHandle, &ShadowLobbyIDAttributeOptions); Result == EOS_EResult::EOS_Success)
         {
             // Update the lobby with the modification handle
             EOS_Lobby_UpdateLobbyOptions UpdateLobbyOptions;

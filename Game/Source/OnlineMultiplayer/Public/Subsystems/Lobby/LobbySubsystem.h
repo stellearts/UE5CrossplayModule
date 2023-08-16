@@ -48,12 +48,30 @@ enum class ELeaveLobbyResultCode : uint8
 };
 
 /*
- * Struct for storing all the necessary lobby information.
+ * Stores all lobby attributes.
+ */
+USTRUCT(BlueprintType)
+struct FLobbyAttributes
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool GameStarted = false;
+
+	UPROPERTY()
+	FString SteamLobbyID;
+};
+
+/*
+ * Stores all the necessary lobby information.
  */
 USTRUCT(BlueprintType)
 struct FLobbyDetails
 {
 	GENERATED_BODY()
+
+	UPROPERTY()
+	FLobbyAttributes LobbyAttributes;
 
 	UPROPERTY(BlueprintReadOnly)
 	FString LobbyID = FString("");
@@ -73,6 +91,7 @@ struct FLobbyDetails
 	// Sets everything to default values
 	void Reset()
 	{
+		// TODO: Check if MemberList needs to clear all pointers, or if empty is enough?
 		LobbyID = "";
 		LobbyOwnerID = "";
 		MemberList.Empty();
@@ -90,6 +109,9 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserLeftDelegate, const FString& Pro
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserDisconnectedDelegate, const FString& ProductUserID);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserKickedDelegate, const FString& ProductUserID);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserPromotedDelegate, const FString& ProductUserID);
+
+DECLARE_MULTICAST_DELEGATE(FOnGameStartDelegate);
+DECLARE_MULTICAST_DELEGATE(FOnGameEndDelegate);
 
 
 /**
@@ -115,10 +137,13 @@ public:
 private:
 	void JoinLobbyByHandle(const EOS_HLobbyDetails& LobbyDetailsHandle);
 	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
-	
-	static void OnLobbyUpdated(const EOS_Lobby_UpdateLobbyCallbackInfo* Data);
-	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
 
+	EOS_HLobbyDetails GetLobbyDetailsHandle();
+
+	template <typename T> void SetLobbyAttribute(const FString& Key, const T& Value);
+	static void OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data);
+	
+	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
 	void OnLobbyUserJoined(const FString& TargetUserID);
 	void OnLobbyUserLeft(const FString& TargetUserID);
 	void OnLobbyUserDisconnected(const FString& TargetUserID);
@@ -137,12 +162,17 @@ public:
 	FOnLobbyUserKickedDelegate OnLobbyUserKickedDelegate;
 	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
 
+	FOnGameStartDelegate OnGameStartDelegate;
+	FOnGameEndDelegate OnGameEndDelegate;
+
 private:
 	class FEosManager* EosManager;
 	EOS_HLobby LobbyHandle;
+	EOS_HLobbyDetails LobbyDetailsHandle;
 	EOS_HLobbySearch LobbySearchByLobbyIDHandle;
 	EOS_HLobbySearch LobbySearchByUserIDHandle;
-	EOS_NotificationId OnLobbyMemberStatusUpdateID;
+	EOS_NotificationId OnLobbyUpdateNotification;
+	EOS_NotificationId OnLobbyMemberStatusNotification;
 	
 	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
