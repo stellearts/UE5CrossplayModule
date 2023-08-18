@@ -4,7 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "UserTypes.h"
+#include "Types/UserTypes.h"
+#include "Types/LobbyTypes.h"
 #include "LobbySubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLobbySubsystem, Log, All);
@@ -12,99 +13,11 @@ inline DEFINE_LOG_CATEGORY(LogLobbySubsystem);
 
 
 
-UENUM(BlueprintType)
-enum class ECreateLobbyResultCode : uint8
-{
-	Success UMETA(DisplayName = "Success."),
-	Failure UMETA(DisplayName = "Failed to create the lobby."),
-	PresenceLobbyExists UMETA(DisplayName = "A presence-lobby already exists."),
-	InLobby UMETA(DisplayName = "Already in a lobby."),
-	EosFailure UMETA(DisplayName = "Some Epic Online Services SDK functionality failed."),
-	Unknown UMETA(DisplayName = "Unkown error occurred."),
-};
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCreateLobbyCompleteDelegate, const ECreateLobbyResultCode, const FLobby&);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinLobbyCompleteDelegate, const EJoinLobbyResultCode, const FLobby&);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyCompleteDelegate, const ELeaveLobbyResultCode);
 
-UENUM(BlueprintType)
-enum class EJoinLobbyResultCode : uint8
-{
-	Success UMETA(DisplayName = "Success."),
-	Failure UMETA(DisplayName = "Failed to join the lobby."),
-	PresenceLobbyExists UMETA(DisplayName = "A presence-lobby already exists."),
-	NotFound UMETA(DisplayName = "No lobby was found."),
-	InvalidLobbyID UMETA(DisplayName = "Invalid lobby ID."),
-	InvalidUserID UMETA(DisplayName = "Invalid user ID."),
-	InLobby UMETA(DisplayName = "Already in a lobby."),
-	EosFailure UMETA(DisplayName = "Some Epic Online Services SDK functionality failed."),
-	Unknown UMETA(DisplayName = "Unkown error occurred."),
-};
-
-UENUM(BlueprintType)
-enum class ELeaveLobbyResultCode : uint8
-{
-	Success UMETA(DisplayName = "Success."),
-	NotInLobby UMETA(DisplayName = "Not in a lobby."),
-	Failure UMETA(DisplayName = "Failed to leave the lobby."),
-	EosFailure UMETA(DisplayName = "Some Epic Online Services SDK functionality failed."),
-	Unknown UMETA(DisplayName = "Unkown error occurred."),
-};
-
-/*
- * Stores all lobby attributes.
- */
-USTRUCT(BlueprintType)
-struct FLobbyAttributes
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	bool GameStarted = false;
-
-	UPROPERTY()
-	FString SteamLobbyID;
-};
-
-/*
- * Stores all the necessary lobby information.
- */
-USTRUCT(BlueprintType)
-struct FLobbyDetails
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FLobbyAttributes LobbyAttributes;
-
-	UPROPERTY(BlueprintReadOnly)
-	FString LobbyID = FString("");
-
-	UPROPERTY(BlueprintReadOnly)
-	FString LobbyOwnerID = FString("");; // TODO: Set when owner leaves lobby.
-
-	UPROPERTY(BlueprintReadOnly)
-	TMap<FString, UOnlineUser*> MemberList;
-
-	UPROPERTY(BlueprintReadOnly)
-	int32 MaxMembers = 4;
-
-	FORCEINLINE void AddMember(UOnlineUser* OnlineUser) { MemberList.Add(OnlineUser->GetProductUserID(), OnlineUser); }
-	FORCEINLINE void RemoveMember(const FString& ProductUserID) { MemberList.Remove(ProductUserID); }
-
-	// Sets everything to default values
-	void Reset()
-	{
-		// TODO: Check if MemberList needs to clear all pointers, or if empty is enough?
-		LobbyID = "";
-		LobbyOwnerID = "";
-		MemberList.Empty();
-		MaxMembers = 4;
-	}
-};
-
-
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnCreateLobbyCompleteDelegate, const ECreateLobbyResultCode ResultCode, const FLobbyDetails& LobbyDetails);
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnJoinLobbyCompleteDelegate, const EJoinLobbyResultCode ResultCode, const FLobbyDetails& LobbyDetails);
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnLeaveLobbyCompleteDelegate, const ELeaveLobbyResultCode ResultCode);
-
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const UOnlineUser* EosUser);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserJoinedDelegate, const UOnlineUser*);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserLeftDelegate, const FString& ProductUserID);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserDisconnectedDelegate, const FString& ProductUserID);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserKickedDelegate, const FString& ProductUserID);
@@ -112,6 +25,8 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserPromotedDelegate, const FString&
 
 DECLARE_MULTICAST_DELEGATE(FOnGameStartDelegate);
 DECLARE_MULTICAST_DELEGATE(FOnGameEndDelegate);
+
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyAttributeChanged, const FLobbyAttribute&);
 
 
 /**
@@ -140,7 +55,8 @@ private:
 
 	EOS_HLobbyDetails GetLobbyDetailsHandle();
 
-	template <typename T> void SetLobbyAttribute(const FString& Key, const T& Value);
+	void SetAttribute(const FLobbyAttribute& Attribute);
+	void SetAttributes(TArray<FLobbyAttribute> Attributes);
 	static void OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data);
 	
 	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
@@ -164,9 +80,12 @@ public:
 
 	FOnGameStartDelegate OnGameStartDelegate;
 	FOnGameEndDelegate OnGameEndDelegate;
+	
+	FOnLobbyAttributeChanged OnLobbyAttributeChanged;
 
 private:
 	class FEosManager* EosManager;
+	
 	EOS_HLobby LobbyHandle;
 	EOS_HLobbyDetails LobbyDetailsHandle;
 	EOS_HLobbySearch LobbySearchByLobbyIDHandle;
@@ -178,14 +97,15 @@ private:
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() class UPlatformLobbySubsystemBase* LocalPlatformLobbySubsystem;
 	
-	UPROPERTY() FLobbyDetails LobbyDetails;
+	UPROPERTY() FLobby Lobby;
 	void LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess)> OnCompleteCallback);
 
 	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
+	TArray<FString> SpecialAttributes{"GameStarted", "SteamLobbyID", "PsnLobbyID", "XboxLobbyID"};
 
 public:
-	FORCEINLINE const FLobbyDetails& GetLobbyDetails() const { return LobbyDetails; }
-	FORCEINLINE bool InLobby() const { return !LobbyDetails.LobbyID.IsEmpty(); }
+	FORCEINLINE const FLobby& GetLobby() const { return Lobby; }
+	FORCEINLINE bool InLobby() const { return !Lobby.ID.IsEmpty(); }
 
 
 

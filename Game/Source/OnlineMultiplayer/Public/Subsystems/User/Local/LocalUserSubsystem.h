@@ -4,7 +4,7 @@
 
 #include <string>
 #include "CoreMinimal.h"
-#include "UserTypes.h"
+#include "Types/UserTypes.h"
 #include "eos_sdk.h"
 #include "LocalUserSubsystem.generated.h"
 
