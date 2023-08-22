@@ -5,7 +5,6 @@
 #include <string>
 #include "CoreMinimal.h"
 #include "Types/UserTypes.h"
-#include "eos_sdk.h"
 #include "LocalUserSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLocalUserSubsystem, Log, All);
@@ -16,7 +15,7 @@ inline DEFINE_LOG_CATEGORY(LogLocalUserSubsystem);
 /**
  * Subsystem for managing the user.
  */
-UCLASS(BlueprintType)
+UCLASS()
 class ONLINEMULTIPLAYER_API ULocalUserSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
@@ -29,8 +28,12 @@ protected:
 
 private:
 	class FEosManager* EosManager;
-	UPROPERTY() class USteamLocalUserSubsystem* SteamLocalUserSubsystem;
-	UPROPERTY() ULocalUser* LocalUser;
+	
+	UPROPERTY()
+	class USteamLocalUserSubsystem* SteamLocalUserSubsystem;
+	
+	UPROPERTY()
+	ULocalUser* LocalUser;
 
 public:
 	FORCEINLINE ULocalUser* GetLocalUser() const { return LocalUser; }

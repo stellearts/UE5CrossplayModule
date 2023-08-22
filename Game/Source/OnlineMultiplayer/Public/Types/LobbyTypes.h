@@ -1,7 +1,10 @@
 ﻿// Copyright © 2023 Melvin Brink
 
 #pragma once
+
+#include "CoreMinimal.h"
 #include "Types/UserTypes.h"
+#include "LobbyTypes.generated.h"
 
 
 
@@ -29,19 +32,22 @@ struct FLobbyAttribute
 {
 	GENERATED_BODY()
 
+	UPROPERTY(BlueprintReadWrite)
 	FString Key;
+
+	UPROPERTY(BlueprintReadWrite)
 	ELobbyAttributeType Type;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite)
 	FString StringValue;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite)
 	bool BoolValue;
 
-	UPROPERTY()
-	int32 IntValue;
+	UPROPERTY(BlueprintReadWrite)
+	int64 IntValue;
 
-	UPROPERTY()
+	UPROPERTY(BlueprintReadWrite)
 	double DoubleValue;
 };
 

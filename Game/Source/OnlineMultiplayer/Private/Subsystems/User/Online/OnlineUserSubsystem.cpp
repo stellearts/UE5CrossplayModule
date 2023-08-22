@@ -5,9 +5,7 @@
 #include "Subsystems/User/Online/SteamOnlineUserSubsystem.h"
 #include "EOSManager.h"
 #include "SteamManager.h"
-#include "eos_common.h"
 #include "Subsystems/Connect/ConnectSubsystem.h"
-#include "Subsystems/User/Local/LocalUserSubsystem.h"
 
 
 UOnlineUserSubsystem::UOnlineUserSubsystem() : SteamManager(&FSteamManager::Get()), EosManager(&FEosManager::Get())
@@ -25,7 +23,7 @@ void UOnlineUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 // -------------------------------- Utilities --------------------------------
 
 
-/*
+/**
  * Returns a user with all necessary properties if exists.
  * Requires a callback since it will be an asynchronous operation when calling this for the first time, user's are cached after completion.
  */
@@ -56,7 +54,7 @@ void UOnlineUserSubsystem::GetOnlineUser(const FString& ProductUserID, const TFu
 	});
 }
 
-/*
+/**
  * Returns a list of users with all necessary properties if they exist.
  * Requires a callback since it will be an asynchronous operation when certain users are not cached yet.
  */

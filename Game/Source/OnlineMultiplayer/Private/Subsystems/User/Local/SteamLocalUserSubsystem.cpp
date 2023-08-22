@@ -2,7 +2,7 @@
 
 #include "Subsystems/User/Local/SteamLocalUserSubsystem.h"
 #include "Subsystems/User/Online/SteamOnlineUserSubsystem.h"
-#include "UserTypes.h"
+#include "Types/UserTypes.h"
 
 #pragma warning(push)
 #pragma warning(disable: 4996)

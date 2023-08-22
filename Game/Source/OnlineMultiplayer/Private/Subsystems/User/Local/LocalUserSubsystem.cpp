@@ -10,6 +10,7 @@
 ULocalUserSubsystem::ULocalUserSubsystem() : EosManager(&FEosManager::Get())
 {
 	LocalUser = NewObject<ULocalUser>();
+	LocalUser->AddToRoot();
 }
 
 void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
@@ -23,6 +24,7 @@ void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// Set platform
 	LocalUser->SetPlatform(EPlatform::Steam);
 	LocalUser->SetUserID(SteamLocalUserSubsystem->GetSteamID().ConvertToUint64());
+	if(LocalUser) UE_LOG(LogLocalUserSubsystem, Warning, TEXT("LocalUser initialized!"));
 
 	// Init platform-local-user subsystems
 	SteamLocalUserSubsystem = Collection.InitializeDependency<USteamLocalUserSubsystem>();
@@ -35,7 +37,6 @@ void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 		SteamLocalUserSubsystem->OnSessionTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamSessionTicketResponse);
 		SteamLocalUserSubsystem->OnEncryptedAppTicketReady.AddUObject(this, &ULocalUserSubsystem::OnSteamEncryptedAppTicketResponse);
 	}
-	
 }
 
 

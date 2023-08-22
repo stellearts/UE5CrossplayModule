@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "UserTypes.h"
+#include "Types/UserTypes.h"
 #include "ConnectSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogConnectSubsystem, Log, All);
@@ -57,9 +57,6 @@ private:
 	class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY()
 	class UOnlineUserSubsystem* OnlineUserSubsystem;
-
-	UPROPERTY()
-	ULocalUser* LocalUser;
 
 public:
 	FOnConnectLoginCompleteDelegate OnConnectLoginCompleteDelegate;

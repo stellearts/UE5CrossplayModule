@@ -10,7 +10,7 @@
 #pragma warning(pop)
 
 #include "CoreMinimal.h"
-#include "UserTypes.h"
+#include "Types/UserTypes.h"
 #include "SteamFriendsSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogSteamFriendsSubsystem, Log, All);

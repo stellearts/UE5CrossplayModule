@@ -49,13 +49,21 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	OnLobbyMemberStatusNotification = EOS_Lobby_AddNotifyLobbyMemberStatusReceived(LobbyHandle, &LobbyMemberStatusReceivedOptions, this, &ULobbySubsystem::OnLobbyMemberStatusUpdate);
 }
 
+void ULobbySubsystem::Deinitialize()
+{
+	Super::Deinitialize();
+
+	EOS_Lobby_RemoveNotifyLobbyUpdateReceived(LobbyHandle, OnLobbyUpdateNotification);
+	EOS_Lobby_RemoveNotifyLobbyMemberStatusReceived(LobbyHandle, OnLobbyMemberStatusNotification);
+}
+
 
 // --------------------------------------------
 
 
 void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 {
-	if(InLobby())
+	if(ActiveLobby())
 	{
 		OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::InLobby, Lobby);
 		return;
@@ -81,10 +89,12 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 	struct FCreateLobbyClientData
 	{
 		ULobbySubsystem* Self;
+		ULocalUserSubsystem* LocalUserSubsystem;
 		int32 MaxMembers;
 	};
 	FCreateLobbyClientData* CreateLobbyClientData = new FCreateLobbyClientData();
 	CreateLobbyClientData->Self = this;
+	CreateLobbyClientData->LocalUserSubsystem = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>();
 	CreateLobbyClientData->MaxMembers = MaxMembers;
 
 	// Create the EOS lobby and handle the result
@@ -92,7 +102,8 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
     {
 		const FCreateLobbyClientData* ClientData = static_cast<FCreateLobbyClientData*>(Data->ClientData);
         ULobbySubsystem* LobbySubsystem = ClientData->Self;
-		ULocalUser* LocalUser = LobbySubsystem->LocalUserSubsystem->GetLocalUser();
+		const ULocalUserSubsystem* LocalUserSubsystem = ClientData->LocalUserSubsystem;
+		ULocalUser* LocalUser = LocalUserSubsystem->GetLocalUser();
 
 		// EOS_LobbyId to FString
 		FString LobbyID;
@@ -100,23 +111,30 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 		
 		if(Data->ResultCode == EOS_EResult::EOS_Success)
 		{
-			// Set lobby-details manually since we have that info locally
+			LobbySubsystem->Lobby.Reset(); // Set everything to default to be sure.
+			
+			// Set the lobby data.
 			LobbySubsystem->Lobby.ID = LobbyID;
 			LobbySubsystem->Lobby.OwnerID = LocalUser->GetProductUserID();
 			LobbySubsystem->Lobby.MemberList = TMap<FString, UOnlineUser*>();
 			LobbySubsystem->Lobby.Settings.MaxMembers = ClientData->MaxMembers;
-			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::Success, LobbySubsystem->Lobby);
 
-			UE_LOG(LogTemp, Log, TEXT("LobbyDetails.LobbyID: %s"), *LobbySubsystem->Lobby.ID)
+			TArray<FLobbyAttribute> AttributeList = LobbySubsystem->GetAttributesFromDetailsHandle();
+			TMap<FString, FLobbyAttribute> AttributeMap;
+			for (FLobbyAttribute Attribute : AttributeList) AttributeMap.Add(Attribute.Key, Attribute);
+			LobbySubsystem->Lobby.Attributes = AttributeMap;
+
+			// Broadcast success.
+			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::Success, LobbySubsystem->Lobby);
 			
-			// Create a shadow lobby for the user's local-platform besides the EOS lobby to be able to easily invite players on that platform.
+			// Create a shadow-lobby on the user's local-platform.
 			if(LocalUser->GetPlatform() == EPlatform::Epic) return;
 			LobbySubsystem->LocalPlatformLobbySubsystem->OnCreateShadowLobbyCompleteDelegate.BindUObject(LobbySubsystem, &ULobbySubsystem::OnCreateShadowLobbyComplete);
 			LobbySubsystem->LocalPlatformLobbySubsystem->CreateLobby();
 		}
 		else if(Data->ResultCode == EOS_EResult::EOS_Lobby_PresenceLobbyExists)
 		{
-			// If there already is an existing 'Presence Lobby' you joined. You can then join this lobby using your User-ID
+			// If a 'Presence Lobby' exists, then join this lobby using your User-ID.
 			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::PresenceLobbyExists, LobbySubsystem->Lobby);
 		}
 		else
@@ -238,7 +256,7 @@ void ULobbySubsystem::JoinLobbyByUserID(const FString& UserID)
 
 void ULobbySubsystem::LeaveLobby()
 {
-	if(!InLobby() || !LobbyHandle)
+	if(!ActiveLobby() || !LobbyHandle)
 	{
 		UE_LOG(LogLobbySubsystem, Error, TEXT("Cannot leave a lobby when not in one."));
 		OnLeaveLobbyCompleteDelegate.Broadcast(ELeaveLobbyResultCode::NotInLobby);
@@ -283,25 +301,27 @@ void ULobbySubsystem::JoinLobbyByHandle(const EOS_HLobbyDetails& LobbyDetailsHan
 	JoinOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	JoinOptions.bPresenceEnabled = true;
 	JoinOptions.LocalRTCOptions = nullptr;
-    
+
 	EOS_Lobby_JoinLobby(LobbyHandle, &JoinOptions, this, &ULobbySubsystem::OnJoinLobbyComplete);
 
 	// Release the handle after using it
 	EOS_LobbyDetails_Release(LobbyDetailsHandle);
 }
 
+
+
 void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data)
 {
 	ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-	ULocalUser* LocalUser = LobbySubsystem->LocalUserSubsystem->GetLocalUser();
 
 	if(Data->ResultCode == EOS_EResult::EOS_Success || Data->ResultCode == EOS_EResult::EOS_Lobby_PresenceLobbyExists)
 	{
 		// Successfully joined the lobby, or we were already part of the lobby.
 		LobbySubsystem->Lobby.ID = FString(Data->LobbyId);
 
-		// Load the lobby-information.
-		LobbySubsystem->LoadLobbyDetails(Data->LobbyId, [LobbySubsystem](const bool bSuccess)
+		// Load the lobby.
+		// TODO: Change name, to LoadLobby? GetLobbyInfo? And also get the attributes in this function.
+		LobbySubsystem->LoadLobby([LobbySubsystem](const bool bSuccess)
 		{
 			if(bSuccess)
 			{
@@ -330,22 +350,7 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 // --------------------------------------------
 
 
-/*
- * Remember to release the handle after using it with EOS_LobbyDetails_Release().
- */
-EOS_HLobbyDetails ULobbySubsystem::GetLobbyDetailsHandle()
-{
-	EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions;
-	LobbyDetailsOptions.ApiVersion = EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST;
-	LobbyDetailsOptions.LobbyId = TCHAR_TO_UTF8(*Lobby.ID);
-	LobbyDetailsOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
-	
-	EOS_HLobbyDetails LobbyDetailsHandle;
-	if(EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle) == EOS_EResult::EOS_Success) return LobbyDetailsHandle;
-	
-	UE_LOG(LogLobbySubsystem, Log, TEXT("Failed to get the Lobby-Details-Handle."));
-	return nullptr;
-}
+
 
 /**
  * Set/updates the attribute on the lobby.
@@ -374,16 +379,44 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 		return;
 	}
 
-	// Any special attributes should not be changed from here, they should be changed using their specific methods.
-	for (FLobbyAttribute Attribute : Attributes)
+	// Only set/update attributes that unchanged, and are non-special attributes (reserved attributes for specific functionality).
+	TArray<FLobbyAttribute> NewAttributes;
+	for (const auto& Attribute : Attributes)
 	{
-		if(SpecialAttributes.Contains(Attribute.Key))
+		if (SpecialAttributes.Contains(Attribute.Key))
 		{
-			Attributes.Remove(Attribute);
 			UE_LOG(LogLobbySubsystem, Warning, TEXT("%s is a special attribute that should not be set using ::SetAttributes, use the corresponding method for it instead."), *Attribute.Key);
+			continue;
 		}
+		
+		const FLobbyAttribute* ExistingAttribute = Lobby.Attributes.Find(Attribute.Key);
+		if (!ExistingAttribute)
+		{
+			NewAttributes.Add(Attribute);
+			continue;
+		}
+
+		bool bShouldAdd = false;
+		switch (ExistingAttribute->Type)
+		{
+		case ELobbyAttributeType::Bool:
+			bShouldAdd = ExistingAttribute->BoolValue != Attribute.BoolValue;
+			break;
+		case ELobbyAttributeType::String:
+			bShouldAdd = ExistingAttribute->StringValue != Attribute.StringValue;
+			break;
+		case ELobbyAttributeType::Int64:
+			bShouldAdd = ExistingAttribute->IntValue != Attribute.IntValue;
+			break;
+		case ELobbyAttributeType::Double:
+			bShouldAdd = ExistingAttribute->DoubleValue != Attribute.DoubleValue;
+			break;
+		}
+		if (bShouldAdd) NewAttributes.Add(Attribute);
 	}
-	if(!Attributes.Num()) return;
+	
+	Attributes = MoveTemp(NewAttributes);
+	if (!Attributes.Num()) return;
 	
 	EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
 	UpdateLobbyModificationOptions.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST;
@@ -466,116 +499,123 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 	else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create the lobby-modification-handle for setting the attribute. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
 }
 
-void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data)
+/**
+ * Get the latest lobby attributes from the EOS Lobby.
+ *
+ * Should only be used to get new attributes after a lobby-update has occured, otherwise use the cached attributes on FLobby.
+ */
+TArray<FLobbyAttribute> ULobbySubsystem::GetAttributesFromDetailsHandle()
 {
-    ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-    UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby update received."))
+	const EOS_HLobbyDetails LobbyDetailsHandle = GetLobbyDetailsHandle();
+	if (!LobbyDetailsHandle)
+	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("Invalid LobbyDetailsHandle received from ::GetLobbyDetailsHandle"));
+		return TArray<FLobbyAttribute>();
+	}
+	
+	// Get the attribute count.
+	EOS_LobbyDetails_GetAttributeCountOptions AttributeCountOptions;
+	AttributeCountOptions.ApiVersion = EOS_LOBBYDETAILS_GETATTRIBUTECOUNT_API_LATEST;
+	const uint32_t AttributeCount = EOS_LobbyDetails_GetAttributeCount(LobbyDetailsHandle, &AttributeCountOptions);
 
-    const EOS_HLobbyDetails LobbyDetailsHandle = LobbySubsystem->GetLobbyDetailsHandle();
-    if (!LobbyDetailsHandle)
-    {
-        UE_LOG(LogLobbySubsystem, Error, TEXT("Invalid LobbyDetailsHandle received from ::GetLobbyDetailsHandle"));
-        return;
-    }
+	// Get all attributes using the count.
+	TArray<FLobbyAttribute> LobbyAttributes;
+	for (uint32_t AttributeIndex = 0; AttributeIndex < AttributeCount; ++AttributeIndex)
+	{
+		EOS_LobbyDetails_CopyAttributeByIndexOptions AttributeOptions;
+		AttributeOptions.ApiVersion = EOS_LOBBYDETAILS_COPYATTRIBUTEBYINDEX_API_LATEST;
+		AttributeOptions.AttrIndex = AttributeIndex;
 
-    // Get the attribute count.
-    EOS_LobbyDetails_GetAttributeCountOptions AttributeCountOptions;
-    AttributeCountOptions.ApiVersion = EOS_LOBBYDETAILS_GETATTRIBUTECOUNT_API_LATEST;
-    const uint32_t AttributeCount = EOS_LobbyDetails_GetAttributeCount(LobbyDetailsHandle, &AttributeCountOptions);
+		EOS_Lobby_Attribute* EosAttribute;
+		const EOS_EResult CopiedAttributeResult = EOS_LobbyDetails_CopyAttributeByIndex(LobbyDetailsHandle, &AttributeOptions, &EosAttribute);
+		if (CopiedAttributeResult != EOS_EResult::EOS_Success || !EosAttribute || !EosAttribute->Data)
+		{
+			UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to copy an Attribute by Index in ::GetAttributesFromDetailsHandle."));
+			continue;
+		}
+		
+		// Create the attribute and set it to the correct type.
+		FLobbyAttribute LobbyAttribute;
+		switch (EosAttribute->Data->ValueType)
+		{
+		case EOS_ELobbyAttributeType::EOS_AT_BOOLEAN:
+			LobbyAttribute.Type = ELobbyAttributeType::Bool;
+			LobbyAttribute.BoolValue = EosAttribute->Data->Value.AsBool == EOS_TRUE;
+			break;
+		case EOS_ELobbyAttributeType::EOS_AT_STRING:
+			LobbyAttribute.Type = ELobbyAttributeType::String;
+			LobbyAttribute.StringValue = ANSI_TO_TCHAR(EosAttribute->Data->Value.AsUtf8);
+			break;
+		case EOS_ELobbyAttributeType::EOS_AT_INT64:
+			LobbyAttribute.Type = ELobbyAttributeType::Int64;
+			LobbyAttribute.IntValue = EosAttribute->Data->Value.AsInt64;
+			break;
+		case EOS_ELobbyAttributeType::EOS_AT_DOUBLE:
+			LobbyAttribute.Type = ELobbyAttributeType::Double;
+			LobbyAttribute.DoubleValue = EosAttribute->Data->Value.AsDouble;
+			break;
+		}
 
-	// Check each attribute for changes.
-    for (uint32_t AttributeIndex = 0; AttributeIndex < AttributeCount; ++AttributeIndex)
-    {
-        EOS_LobbyDetails_CopyAttributeByIndexOptions AttributeOptions;
-        AttributeOptions.ApiVersion = EOS_LOBBYDETAILS_COPYATTRIBUTEBYINDEX_API_LATEST;
-        AttributeOptions.AttrIndex = AttributeIndex;
+		LobbyAttributes.Add(LobbyAttribute);
+	}
 
-        EOS_Lobby_Attribute* EosAttribute;
-        const EOS_EResult CopiedAttributeResult = EOS_LobbyDetails_CopyAttributeByIndex(LobbyDetailsHandle, &AttributeOptions, &EosAttribute);
-        if (CopiedAttributeResult != EOS_EResult::EOS_Success || !EosAttribute || !EosAttribute->Data)
-        {
-        	UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to copy an attribute by index in ::OnLobbyUpdate."));
-            continue;
-        }
-
-    	// Check for any special attribute changes, otherwise update the custom attribute.
-    	FLobbyAttribute* CurrentAttribute;
-        if (const FString Key = ANSI_TO_TCHAR(EosAttribute->Data->Key); Key == "GameStarted" && EosAttribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_BOOLEAN)
-        {
-        	CurrentAttribute = LobbySubsystem->Lobby.Attributes.Find("GameStarted");
-        	if(!CurrentAttribute) continue;
-        	
-            const bool GameStarted = EosAttribute->Data->Value.AsBool == EOS_TRUE;
-            if (const bool CurrentGameStarted = CurrentAttribute->BoolValue; GameStarted != CurrentGameStarted)
-            {
-                CurrentAttribute->BoolValue = GameStarted;
-                GameStarted ? LobbySubsystem->OnGameStartDelegate.Broadcast() : LobbySubsystem->OnGameEndDelegate.Broadcast();
-            }
-        }
-        else if (Key == "SteamLobbyID" && EosAttribute->Data->ValueType == EOS_ELobbyAttributeType::EOS_AT_STRING)
-        {
-        	CurrentAttribute = LobbySubsystem->Lobby.Attributes.Find("SteamLobbyID");
-        	if(!CurrentAttribute) continue;
-        	
-        	const FString SteamLobbyID = EosAttribute->Data->Value.AsUtf8;
-        	if (const FString CurrentSteamLobbyID = CurrentAttribute->StringValue; SteamLobbyID != CurrentSteamLobbyID)
-        	{
-        		CurrentAttribute->StringValue = SteamLobbyID;
-        		// TODO: Do something with this change?
-        	}
-        }
-        else // Custom attribute
-        {
-        	// Create a new FLobbyAttribute and set it using the EosAttribute.
-        	// Continue the loop if there was no change between the CurrentAttribute and EosAttribute.
-        	CurrentAttribute = LobbySubsystem->Lobby.Attributes.Find(Key);
-        	FLobbyAttribute NewAttribute;
-        	NewAttribute.Key = Key;
-
-        	// Check which type of value this attribute uses and if that value has changed.
-        	switch (EosAttribute->Data->ValueType)
-        	{
-        	case EOS_ELobbyAttributeType::EOS_AT_BOOLEAN:
-        		if(CurrentAttribute && CurrentAttribute->BoolValue != EosAttribute->Data->Value.AsBool) continue;
-        		NewAttribute.Type = ELobbyAttributeType::Bool;
-        		NewAttribute.BoolValue = EosAttribute->Data->Value.AsBool == EOS_TRUE;
-        		break;
-        	case EOS_ELobbyAttributeType::EOS_AT_STRING:
-        		if(CurrentAttribute && CurrentAttribute->StringValue != EosAttribute->Data->Value.AsUtf8) continue;
-        		NewAttribute.Type = ELobbyAttributeType::String;
-        		NewAttribute.StringValue = ANSI_TO_TCHAR(EosAttribute->Data->Value.AsUtf8);
-        		break;
-        	case EOS_ELobbyAttributeType::EOS_AT_INT64:
-        		if(CurrentAttribute && CurrentAttribute->IntValue != EosAttribute->Data->Value.AsInt64) continue;
-        		NewAttribute.Type = ELobbyAttributeType::Int64;
-        		NewAttribute.IntValue = EosAttribute->Data->Value.AsInt64;
-        		break;
-        	case EOS_ELobbyAttributeType::EOS_AT_DOUBLE:
-        		if(CurrentAttribute && CurrentAttribute->DoubleValue != EosAttribute->Data->Value.AsDouble) continue;
-        		NewAttribute.Type = ELobbyAttributeType::Double;
-        		NewAttribute.DoubleValue = EosAttribute->Data->Value.AsDouble;
-        		break;
-        	default:
-        		UE_LOG(LogLobbySubsystem, Warning, TEXT("Unknown attribute type encountered in ::OnLobbyUpdate."));
-        		continue;
-        	}
-
-        	// Reaches here when there was a change between the CurrentAttribute and EosAttribute.
-        	LobbySubsystem->Lobby.Attributes.Add(NewAttribute.Key, NewAttribute); // Replaces the old one if exists.
-        	LobbySubsystem->OnLobbyAttributeChanged.Broadcast(NewAttribute);
-        }
-
-        // Release from memory
-        EOS_Lobby_Attribute_Release(EosAttribute);
-    }
-
-    // Release from memory
-    EOS_LobbyDetails_Release(LobbyDetailsHandle);
+	return LobbyAttributes;
 }
 
 
 // --------------------------------------------
 
+
+void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data)
+{
+    ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
+    UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby update received."))
+
+	TMap<FString, FLobbyAttribute> CachedAttributes = LobbySubsystem->Lobby.Attributes;
+    TArray<FLobbyAttribute> LatestAttributes = LobbySubsystem->GetAttributesFromDetailsHandle();
+
+	// Check each attribute if it has changed.
+    for (const FLobbyAttribute LatestAttribute : LatestAttributes)
+    {
+    	// Check for any special attribute changes, otherwise update the custom attribute.
+    	const FLobbyAttribute* CachedAttribute = CachedAttributes.Find(LatestAttribute.Key);
+    	bool bHasChanged = false;
+
+    	if (CachedAttribute)
+    	{
+    		// Check if attributes differ.
+    		switch (LatestAttribute.Type)
+    		{
+    		case ELobbyAttributeType::Bool:
+    			bHasChanged = !(CachedAttribute->Type == ELobbyAttributeType::Bool && CachedAttribute->BoolValue == LatestAttribute.BoolValue);
+    			break;
+    		case ELobbyAttributeType::String:
+    			bHasChanged = !(CachedAttribute->Type == ELobbyAttributeType::String && CachedAttribute->StringValue == LatestAttribute.StringValue);
+    			break;
+    		case ELobbyAttributeType::Int64:
+    			bHasChanged = !(CachedAttribute->Type == ELobbyAttributeType::Int64 && CachedAttribute->IntValue == LatestAttribute.IntValue);
+    			break;
+    		case ELobbyAttributeType::Double:
+    			bHasChanged = !(CachedAttribute->Type == ELobbyAttributeType::Double && CachedAttribute->DoubleValue == LatestAttribute.DoubleValue);
+    			break;
+    		}
+    	}
+    	else bHasChanged = true; // The attribute doesn't exist in the cache.
+
+    	// Set/update the attribute on the lobby if it has changed.
+    	if (bHasChanged) LobbySubsystem->Lobby.Attributes.Emplace(LatestAttribute.Key, LatestAttribute);
+
+        switch (LatestAttribute.Key)
+        {
+        case "GameStarted":
+	        // Broadcast game-start/end.
+        	LatestAttribute.BoolValue ? LobbySubsystem->OnGameStartDelegate.Broadcast() : LobbySubsystem->OnGameEndDelegate.Broadcast();
+		default:
+			// Broadcast that a custom attribute has changed.
+        	LobbySubsystem->OnLobbyAttributeChanged.Broadcast(LatestAttribute);
+        }
+    }
+}
 
 /**
  * Called when a user joins/leaves/disconnects is kicked/promoted or the lobby has been closed.
@@ -615,9 +655,10 @@ void ULobbySubsystem::OnLobbyUserJoined(const FString& TargetUserID)
 	UE_LOG(LogLobbySubsystem, Log, TEXT("A user has joined the lobby"));
 	// TODO: Check if user is a friend. If so, get the friend user and add it to the list of connected users. This prevents api call.
 	
-	// Add the user to the list of users to load
+	// Add the user to the list of users to load.
 	UsersToLoad.Add(TargetUserID);
-	
+
+	// Fetch the info of this user.
 	OnlineUserSubsystem->GetOnlineUser(TargetUserID, [this, TargetUserID](const FGetOnlineUserResult Result)
 	{
 		// Check if user is still in lobby after this fetch
@@ -662,95 +703,102 @@ void ULobbySubsystem::OnLobbyUserPromoted(const FString& TargetUserID)
 // --------------------------------------------
 
 
-/**
- * Gets all the necessary information from a lobby and stores it in memory, this includes the members.
- *
- * @param LobbyID The ID of the lobby to get the details from.
- * @param OnCompleteCallback Callback to call when the function completes.
+/*
+ * Remember to release the handle after using it with EOS_LobbyDetails_Release().
  */
-void ULobbySubsystem::LoadLobbyDetails(const EOS_LobbyId LobbyID, TFunction<void(bool bSuccess)> OnCompleteCallback)
+EOS_HLobbyDetails ULobbySubsystem::GetLobbyDetailsHandle() const
 {
 	EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions;
 	LobbyDetailsOptions.ApiVersion = EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST;
-	LobbyDetailsOptions.LobbyId = LobbyID;
+	LobbyDetailsOptions.LobbyId = TCHAR_TO_UTF8(*Lobby.ID);
 	LobbyDetailsOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	
 	EOS_HLobbyDetails LobbyDetailsHandle;
-	EOS_EResult Result = EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle);
-	if(Result == EOS_EResult::EOS_Success)
+	if(EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle) == EOS_EResult::EOS_Success) return LobbyDetailsHandle;
+	
+	UE_LOG(LogLobbySubsystem, Log, TEXT("Failed to get the Lobby-Details-Handle."));
+	return nullptr;
+}
+
+/**
+ * Loads all the necessary information from the lobby and stores it on the lobby-subsystems.
+ *
+ * @param OnCompleteCallback Called when the function completes.
+ */
+void ULobbySubsystem::LoadLobby(TFunction<void(bool bSuccess)> OnCompleteCallback)
+{
+	if(!ActiveLobby())
 	{
-		// Successfully got the LobbyDetails-Handle
+		UE_LOG(LogLobbySubsystem, Log, TEXT("Must be in a lobby first before calling ::LoadLobby"));
+		return;
+	}
+
+	const EOS_HLobbyDetails LobbyDetailsHandle = GetLobbyDetailsHandle();
+	if(!LobbyDetailsHandle) OnCompleteCallback(false);
+	
+	// Get Lobby Info
+	constexpr EOS_LobbyDetails_CopyInfoOptions CopyInfoOptions{ EOS_LOBBYDETAILS_COPYINFO_API_LATEST };
+	EOS_LobbyDetails_Info* LobbyInfo;
+	if(const EOS_EResult Result = EOS_LobbyDetails_CopyInfo(LobbyDetailsHandle, &CopyInfoOptions, &LobbyInfo); Result == EOS_EResult::EOS_Success)
+	{
+		// Successfully got the LobbyDetails
+
+		// Store the details we need
+		Lobby.ID = FString(LobbyInfo->LobbyId);
+		Lobby.OwnerID = EosProductIDToString(LobbyInfo->LobbyOwnerUserId);
+		Lobby.Settings.MaxMembers = LobbyInfo->MaxMembers;
 		
-		// Get Lobby Info
-		constexpr EOS_LobbyDetails_CopyInfoOptions CopyInfoOptions{
-			EOS_LOBBYDETAILS_COPYINFO_API_LATEST
+		// Release the info to avoid memory leaks
+		EOS_LobbyDetails_Info_Release(LobbyInfo);
+		
+		// Get the Member Count
+		constexpr EOS_LobbyDetails_GetMemberCountOptions MemberCountOptions{
+			EOS_LOBBYDETAILS_GETMEMBERCOUNT_API_LATEST
 		};
-		EOS_LobbyDetails_Info* LobbyInfo;
-		Result = EOS_LobbyDetails_CopyInfo(LobbyDetailsHandle, &CopyInfoOptions, &LobbyInfo);
-		if(Result == EOS_EResult::EOS_Success)
-		{
-			// Successfully got the LobbyDetails
+		const uint32_t MemberCount = EOS_LobbyDetails_GetMemberCount(LobbyDetailsHandle, &MemberCountOptions);
 
-			// Store the details we need
-			Lobby.ID = FString(LobbyInfo->LobbyId);
-			Lobby.OwnerID = EosProductIDToString(LobbyInfo->LobbyOwnerUserId);
-			Lobby.Settings.MaxMembers = LobbyInfo->MaxMembers;
-			
-			// Release the info to avoid memory leaks
-			EOS_LobbyDetails_Info_Release(LobbyInfo);
-			
-			// Get the Member Count
-			constexpr EOS_LobbyDetails_GetMemberCountOptions MemberCountOptions{
-				EOS_LOBBYDETAILS_GETMEMBERCOUNT_API_LATEST
+		// Get the Members using the count, excluding the local-user.
+		const FString LocalUserProductID = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>()->GetLocalUser()->GetProductUserID();
+		TArray<FString> MemberProductIDs;
+		for(uint32_t MemberIndex = 0; MemberIndex < MemberCount; MemberIndex++)
+		{
+			const EOS_LobbyDetails_GetMemberByIndexOptions MemberByIndexOptions{
+				EOS_LOBBYDETAILS_GETMEMBERBYINDEX_API_LATEST,
+				MemberIndex
 			};
-			const uint32_t MemberCount = EOS_LobbyDetails_GetMemberCount(LobbyDetailsHandle, &MemberCountOptions);
-
-			// Get the Members using the count, excluding the local-user.
-			const FString LocalUserProductID = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>()->GetLocalUser()->GetProductUserID();
-			TArray<FString> MemberProductIDs;
-			for(uint32_t MemberIndex = 0; MemberIndex < MemberCount; MemberIndex++)
-			{
-				const EOS_LobbyDetails_GetMemberByIndexOptions MemberByIndexOptions{
-					EOS_LOBBYDETAILS_GETMEMBERBYINDEX_API_LATEST,
-					MemberIndex
-				};
-				const FString MemberProductID = EosProductIDToString(EOS_LobbyDetails_GetMemberByIndex(LobbyDetailsHandle, &MemberByIndexOptions));
-				if(!MemberProductID.IsEmpty() && MemberProductID != LocalUserProductID) MemberProductIDs.Add(MemberProductID);
-			}
-			
-			// Get the user-information from all user's in the lobby
-			OnlineUserSubsystem->GetOnlineUsers(MemberProductIDs, [this, OnCompleteCallback](const FGetOnlineUsersResult& Result)
-			{
-				if(Result.ResultCode != EGetOnlineUserResultCode::Success)
-				{
-					OnCompleteCallback(false);
-					return;
-				}
-
-				TMap<FString, UOnlineUser*> OnlineUserMap;
-				for (UOnlineUser* OnlineUser : Result.OnlineUsers)
-				{
-					OnlineUserMap.Add(OnlineUser->GetProductUserID(), OnlineUser);
-				}
-
-				ULocalUser* LocalUser = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>()->GetLocalUser();
-				OnlineUserMap.Add(LocalUser->GetProductUserID(), LocalUser);
-				Lobby.MemberList = OnlineUserMap;
-
-				// Done loading data.
-				OnCompleteCallback(true);
-			});
+			const FString MemberProductID = EosProductIDToString(EOS_LobbyDetails_GetMemberByIndex(LobbyDetailsHandle, &MemberByIndexOptions));
+			if(!MemberProductID.IsEmpty() && MemberProductID != LocalUserProductID) MemberProductIDs.Add(MemberProductID);
 		}
-		else
+		
+		// Get the user-information from all user's in the lobby
+		OnlineUserSubsystem->GetOnlineUsers(MemberProductIDs, [this, OnCompleteCallback](const FGetOnlineUsersResult& Result)
 		{
-			EOS_LobbyDetails_Info_Release(LobbyInfo);
-			OnCompleteCallback(false);
-		}
+			if(Result.ResultCode != EGetOnlineUserResultCode::Success)
+			{
+				OnCompleteCallback(false);
+				return;
+			}
+
+			TMap<FString, UOnlineUser*> OnlineUserMap;
+			for (UOnlineUser* OnlineUser : Result.OnlineUsers)
+			{
+				OnlineUserMap.Add(OnlineUser->GetProductUserID(), OnlineUser);
+			}
+
+			ULocalUser* LocalUser = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>()->GetLocalUser();
+			OnlineUserMap.Add(LocalUser->GetProductUserID(), LocalUser);
+			Lobby.MemberList = OnlineUserMap;
+
+			// Done loading data.
+			OnCompleteCallback(true);
+		});
 	}
 	else
 	{
+		EOS_LobbyDetails_Info_Release(LobbyInfo);
 		OnCompleteCallback(false);
 	}
+	
 }
 
 
@@ -779,7 +827,7 @@ void ULobbySubsystem::OnJoinShadowLobbyComplete(const uint64 ShadowLobbyId)
  */
 void ULobbySubsystem::AddShadowLobbyIDAttribute(const FString& ShadowLobbyID)
 {
-    EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
+	EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
     UpdateLobbyModificationOptions.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST;
 	UpdateLobbyModificationOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
     UpdateLobbyModificationOptions.LobbyId = TCHAR_TO_ANSI(*Lobby.ID);

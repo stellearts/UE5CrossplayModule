@@ -16,7 +16,7 @@ struct FCreateLobbyResult
 	GENERATED_BODY()
 
 	UPROPERTY(BlueprintReadWrite)
-	FLobbyDetails LobbyDetails;
+	FLobby LobbyDetails;
 
 	UPROPERTY(BlueprintReadWrite)
 	ECreateLobbyResultCode LobbyResultCode;

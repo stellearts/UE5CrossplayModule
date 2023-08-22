@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "UserTypes.h"
+#include "Types/UserTypes.h"
 #include "OnlineUserSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogOnlineUserSubsystem, Log, All);

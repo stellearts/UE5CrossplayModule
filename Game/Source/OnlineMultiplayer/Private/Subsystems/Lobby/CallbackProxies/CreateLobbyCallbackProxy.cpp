@@ -23,13 +23,13 @@ void UCreateLobbyCallbackProxy::Activate()
 	ULobbySubsystem* LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
 	if(LobbySubsystem)
 	{
-		CreateLobbyDelegateHandle = LobbySubsystem->OnCreateLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ECreateLobbyResultCode LobbyResultCode, const FLobbyDetails& LobbyDetails)
+		CreateLobbyDelegateHandle = LobbySubsystem->OnCreateLobbyCompleteDelegate.AddLambda([this, LobbySubsystem](const ECreateLobbyResultCode LobbyResultCode, const FLobby& Lobby)
 		{
 			LobbySubsystem->OnCreateLobbyCompleteDelegate.Remove(CreateLobbyDelegateHandle);
 			
 			FCreateLobbyResult Result;
 			Result.LobbyResultCode = LobbyResultCode;
-			Result.LobbyDetails = LobbyDetails;
+			Result.LobbyDetails = Lobby;
 
 			if(LobbyResultCode == ECreateLobbyResultCode::Success) OnSuccess.Broadcast(Result);
 			else OnFailure.Broadcast(Result);

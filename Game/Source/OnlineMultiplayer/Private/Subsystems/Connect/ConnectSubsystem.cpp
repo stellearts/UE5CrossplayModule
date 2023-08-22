@@ -16,8 +16,6 @@ void UConnectSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	LocalUserSubsystem = Collection.InitializeDependency<ULocalUserSubsystem>();
 	OnlineUserSubsystem = Collection.InitializeDependency<UOnlineUserSubsystem>();
 
-	LocalUser = LocalUserSubsystem->GetLocalUser();
-
 	EosManager = &FEosManager::Get();
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
 	if(!PlatformHandle) return;
@@ -104,7 +102,7 @@ void UConnectSubsystem::CreateNewUser()
 {
 	EOS_Connect_CreateUserOptions CreateUserOptions;
 	CreateUserOptions.ApiVersion = EOS_CONNECT_CREATEUSER_API_LATEST;
-	CreateUserOptions.ContinuanceToken = LocalUser->GetContinuanceToken();
+	CreateUserOptions.ContinuanceToken = LocalUserSubsystem->GetLocalUser()->GetContinuanceToken();
 	EOS_Connect_CreateUser(ConnectHandle, &CreateUserOptions, this, [](const EOS_Connect_CreateUserCallbackInfo* Data)
 	{
 		UConnectSubsystem* ConnectSubsystem = static_cast<UConnectSubsystem*>(Data->ClientData);
@@ -127,7 +125,7 @@ void UConnectSubsystem::CheckAccounts()
 {
 	EOS_Connect_QueryProductUserIdMappingsOptions QueryMappingsOptions = {};
 	QueryMappingsOptions.ApiVersion = EOS_CONNECT_QUERYPRODUCTUSERIDMAPPINGS_API_LATEST;
-	QueryMappingsOptions.LocalUserId = EosProductIDFromString(LocalUser->GetProductUserID());
+	QueryMappingsOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	EOS_ProductUserId ProductUserIds[] = {QueryMappingsOptions.LocalUserId};
 	QueryMappingsOptions.ProductUserIds = ProductUserIds;
 	QueryMappingsOptions.ProductUserIdCount = 1;
@@ -199,7 +197,7 @@ void UConnectSubsystem::GetOnlineUserDetails(TArray<FString>& ProductUserIDList,
 	// Options
 	EOS_Connect_QueryProductUserIdMappingsOptions Options;
 	Options.ApiVersion = EOS_CONNECT_QUERYPRODUCTUSERIDMAPPINGS_API_LATEST;
-	Options.LocalUserId = EosProductIDFromString(LocalUser->GetProductUserID());
+	Options.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	Options.ProductUserIds = ProductUserIDs.GetData();
 	Options.ProductUserIdCount = ProductUserIDs.Num();
 

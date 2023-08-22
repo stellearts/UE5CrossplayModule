@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "UserTypes.h"
+#include "Types/UserTypes.h"
 #include "FriendsSubsystem.generated.h"
 
 DECLARE_LOG_CATEGORY_EXTERN(LogFriendsSubsystem, Log, All);
