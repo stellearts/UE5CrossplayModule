@@ -20,7 +20,7 @@ ULeaveLobbyCallbackProxy* ULeaveLobbyCallbackProxy::LeaveLobby(UObject* WorldCon
 void ULeaveLobbyCallbackProxy::Activate()
 {
 	if(!LobbySubsystem) LobbySubsystem = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull)->GetGameInstance()->GetSubsystem<ULobbySubsystem>();
-	if(LobbySubsystem->InLobby())
+	if(LobbySubsystem->ActiveLobby())
 	{
 		LeaveLobbyDelegateHandle = LobbySubsystem->OnLeaveLobbyCompleteDelegate.AddUObject(this, &ThisClass::OnCompleted);
 		LobbySubsystem->LeaveLobby();

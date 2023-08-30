@@ -53,7 +53,6 @@ struct FLobbyAttribute
 
 
 
-
 /*
  * Settings
  */
@@ -100,6 +99,12 @@ struct FLobby
 	
 	FORCEINLINE void AddMember(UOnlineUser* OnlineUser) { MemberList.Add(OnlineUser->GetProductUserID(), OnlineUser); }
 	FORCEINLINE void RemoveMember(const FString& ProductUserID) { MemberList.Remove(ProductUserID); }
+	TArray<UOnlineUser*> GetMemberList() const
+	{
+		TArray<UOnlineUser*> OutArr;
+		MemberList.GenerateValueArray(OutArr);
+		return OutArr;
+	}
 
 	// Sets everything to default values
 	void Reset()

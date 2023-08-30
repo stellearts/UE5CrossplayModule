@@ -18,11 +18,12 @@ public class OnlineMultiplayer : ModuleRules
                     "CoreUObject",
                     "UMG",
                     "Slate",
-                    "SlateCore"
+                    "SlateCore",
+                    "Http"
                 }
         );
 
-        PrivateDependencyModuleNames.AddRange(new string[]{});
+        PrivateDependencyModuleNames.AddRange(new string[] { });
         
         
         

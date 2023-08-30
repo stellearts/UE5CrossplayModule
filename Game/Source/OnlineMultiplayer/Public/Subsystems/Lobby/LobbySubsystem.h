@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
+#include "LatentActions.h"
 #include "Types/UserTypes.h"
 #include "Types/LobbyTypes.h"
 #include "LobbySubsystem.generated.h"
@@ -23,11 +24,20 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserDisconnectedDelegate, const FStr
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserKickedDelegate, const FString& ProductUserID);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserPromotedDelegate, const FString& ProductUserID);
 
-DECLARE_MULTICAST_DELEGATE(FOnGameStartDelegate);
-DECLARE_MULTICAST_DELEGATE(FOnGameEndDelegate);
-
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionIDAttributeAdded, const FString&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyAttributeChanged, const FLobbyAttribute&);
 
+USTRUCT(BlueprintType)
+struct FLatentActionInfos
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(BlueprintReadWrite)
+	FLatentActionInfo OnSuccess;
+
+	UPROPERTY(BlueprintReadWrite)
+	FLatentActionInfo OnFailure;
+};
 
 /**
  * Subsystem for managing game lobbies.
@@ -45,32 +55,6 @@ protected:
 	virtual void Deinitialize() override;
 
 public:
-	void CreateLobby(const int32 MaxMembers);
-	void JoinLobbyByID(const FString& LobbyID);
-	void JoinLobbyByUserID(const FString& UserID);
-	void LeaveLobby();
-
-private:
-	void JoinLobbyByHandle(const EOS_HLobbyDetails& LobbyDetailsHandle);
-	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
-
-public:
-	void SetAttribute(const FLobbyAttribute& Attribute);
-	void SetAttributes(TArray<FLobbyAttribute> Attributes);
-	FORCEINLINE TArray<FLobbyAttribute> GetAttributeList() const { TArray<FLobbyAttribute> Attributes; Lobby.Attributes.GenerateValueArray(Attributes); return Attributes; }
-
-private:
-	TArray<FLobbyAttribute> GetAttributesFromDetailsHandle();
-	
-	static void OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data);
-	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
-	void OnLobbyUserJoined(const FString& TargetUserID);
-	void OnLobbyUserLeft(const FString& TargetUserID);
-	void OnLobbyUserDisconnected(const FString& TargetUserID);
-	void OnLobbyUserKicked(const FString& TargetUserID);
-	void OnLobbyUserPromoted(const FString& TargetUserID);
-
-public:
 	// Delegates
 	FOnCreateLobbyCompleteDelegate OnCreateLobbyCompleteDelegate;
 	FOnJoinLobbyCompleteDelegate OnJoinLobbyCompleteDelegate;
@@ -82,14 +66,41 @@ public:
 	FOnLobbyUserKickedDelegate OnLobbyUserKickedDelegate;
 	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
 
-	FOnGameStartDelegate OnGameStartDelegate;
-	FOnGameEndDelegate OnGameEndDelegate;
-	
-	FOnLobbyAttributeChanged OnLobbyAttributeChanged;
+	FOnSessionIDAttributeAdded OnSessionIDAttributeChanged; // For joining a session
+	FOnLobbyAttributeChanged OnLobbyAttributeChanged; // Custom lobby attribute
 
 private:
-	class FEosManager* EosManager;
+	FDelegateHandle StartServerCompleteDelegateHandle;
 	
+public:
+	void CreateLobby(const int32 MaxMembers);
+	void JoinLobbyByID(const FString& LobbyID);
+	void JoinLobbyByUserID(const FString& UserID);
+	void LeaveLobby();
+
+	UFUNCTION(BlueprintCallable, meta = (Latent, WorldContext = "WorldContextObject", LatentInfo = "LatentInfos"))
+	void StartListenServer(UObject* WorldContextObject, FLatentActionInfos LatentInfos);
+
+private:
+	void JoinLobbyByHandle(const EOS_HLobbyDetails& LobbyDetailsHandle);
+	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
+
+public:
+	FORCEINLINE void SetAttribute(const FLobbyAttribute& Attribute) { SetAttributes(TArray<FLobbyAttribute>{Attribute}); }
+	void SetAttributes(TArray<FLobbyAttribute> Attributes);
+
+private:
+	TArray<FLobbyAttribute> GetAttributesFromDetailsHandle();
+	
+	static void OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data);
+	static void OnLobbyMemberStatusUpdate(const EOS_Lobby_LobbyMemberStatusReceivedCallbackInfo* Data);
+	void OnLobbyUserJoined(const FString& TargetUserID);
+	void OnLobbyUserLeft(const FString& TargetUserID);
+	void OnLobbyUserDisconnected(const FString& TargetUserID);
+	void OnLobbyUserKicked(const FString& TargetUserID);
+	void OnLobbyUserPromoted(const FString& TargetUserID);
+	
+	// EOS Variables
 	EOS_HLobby LobbyHandle;
 	EOS_HLobbyDetails GetLobbyDetailsHandle() const;
 	EOS_HLobbySearch LobbySearchByLobbyIDHandle;
@@ -97,6 +108,8 @@ private:
 	EOS_NotificationId OnLobbyUpdateNotification;
 	EOS_NotificationId OnLobbyMemberStatusNotification;
 
+	// Subsystems
+	class FEosManager* EosManager;
 	UPROPERTY() class ULocalUserSubsystem* LocalUserSubsystem;
 	UPROPERTY() class UOnlineUserSubsystem* OnlineUserSubsystem;
 	UPROPERTY() class UPlatformLobbySubsystemBase* LocalPlatformLobbySubsystem;
@@ -105,7 +118,7 @@ private:
 	void LoadLobby(TFunction<void(bool bSuccess)> OnCompleteCallback);
 
 	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
-	TArray<FString> SpecialAttributes{"GameStarted", "SteamLobbyID", "PsnLobbyID", "XboxLobbyID"};
+	TArray<FString> SpecialAttributes{"SessionID", "SteamLobbyID", "PsnLobbyID", "XboxLobbyID"};
 
 public:
 	FORCEINLINE const FLobby& GetLobby() const { return Lobby; }

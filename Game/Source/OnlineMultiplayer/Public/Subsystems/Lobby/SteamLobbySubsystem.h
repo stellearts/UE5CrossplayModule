@@ -22,7 +22,7 @@ inline DEFINE_LOG_CATEGORY(LogSteamLobbySubsystem);
 /**
  * Subsystem for managing Steam friends
  */
-UCLASS(NotBlueprintable)
+UCLASS()
 class ONLINEMULTIPLAYER_API USteamLobbySubsystem : public UPlatformLobbySubsystemBase
 {
 	GENERATED_BODY()

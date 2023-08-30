@@ -36,7 +36,7 @@ void USteamLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
  */
 void USteamLobbySubsystem::CreateLobby()
 {
-	if(!LobbySubsystem->InLobby())
+	if(!LobbySubsystem->ActiveLobby())
 	{
 		UE_LOG(LogSteamLobbySubsystem, Warning, TEXT("Not in an EOS-lobby. Cannot create Shadow-Lobby without being in an EOS-lobby."));
 		return;
@@ -112,7 +112,7 @@ void USteamLobbySubsystem::OnJoinLobbyComplete(LobbyEnter_t* Data, bool bIOFailu
 		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Shadow-lobby joined."));
 
 		// Join the EOS lobby if the user is not already in the EOS lobby.
-		if(!LobbySubsystem->InLobby())
+		if(!LobbySubsystem->ActiveLobby())
 		{
 			const FString EosLobbyID = FString(SteamMatchmaking()->GetLobbyData(Data->m_ulSteamIDLobby, "EOSLobbyID"));
 			UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Trying to joing EOS Lobby: [%s]"), *EosLobbyID);

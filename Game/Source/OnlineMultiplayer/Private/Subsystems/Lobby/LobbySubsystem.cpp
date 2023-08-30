@@ -11,7 +11,7 @@
 #include "Helpers.h"
 #include "EOSManager.h"
 #include "eos_lobby.h"
-
+#include "Subsystems/Session/SessionSubsystem.h"
 
 
 ULobbySubsystem::ULobbySubsystem() : EosManager(&FEosManager::Get())
@@ -36,25 +36,24 @@ void ULobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	}
 	
 	const EOS_HPlatform PlatformHandle = EosManager->GetPlatformHandle();
-	if(!PlatformHandle) return;
 	LobbyHandle = EOS_Platform_GetLobbyInterface(PlatformHandle);
 
 	EOS_Lobby_AddNotifyLobbyUpdateReceivedOptions LobbyUpdateReceivedOptions;
 	LobbyUpdateReceivedOptions.ApiVersion = EOS_LOBBY_ADDNOTIFYLOBBYUPDATERECEIVED_API_LATEST;
-	OnLobbyUpdateNotification = EOS_Lobby_AddNotifyLobbyUpdateReceived(LobbyHandle, &LobbyUpdateReceivedOptions, this, &ULobbySubsystem::OnLobbyUpdate);
+	OnLobbyUpdateNotification = EOS_Lobby_AddNotifyLobbyUpdateReceived(LobbyHandle, &LobbyUpdateReceivedOptions, this, &ThisClass::OnLobbyUpdate);
 	
 	// Register lobby member status update callback.
 	EOS_Lobby_AddNotifyLobbyMemberStatusReceivedOptions LobbyMemberStatusReceivedOptions;
 	LobbyMemberStatusReceivedOptions.ApiVersion = EOS_LOBBY_ADDNOTIFYLOBBYMEMBERSTATUSRECEIVED_API_LATEST;
-	OnLobbyMemberStatusNotification = EOS_Lobby_AddNotifyLobbyMemberStatusReceived(LobbyHandle, &LobbyMemberStatusReceivedOptions, this, &ULobbySubsystem::OnLobbyMemberStatusUpdate);
+	OnLobbyMemberStatusNotification = EOS_Lobby_AddNotifyLobbyMemberStatusReceived(LobbyHandle, &LobbyMemberStatusReceivedOptions, this, &ThisClass::OnLobbyMemberStatusUpdate);
 }
 
 void ULobbySubsystem::Deinitialize()
 {
-	Super::Deinitialize();
-
 	EOS_Lobby_RemoveNotifyLobbyUpdateReceived(LobbyHandle, OnLobbyUpdateNotification);
 	EOS_Lobby_RemoveNotifyLobbyMemberStatusReceived(LobbyHandle, OnLobbyMemberStatusNotification);
+
+	Super::Deinitialize();
 }
 
 
@@ -77,7 +76,7 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 	CreateLobbyOptions.PermissionLevel = EOS_ELobbyPermissionLevel::EOS_LPL_INVITEONLY;
 	CreateLobbyOptions.bPresenceEnabled = true;
 	CreateLobbyOptions.bAllowInvites = true;
-	CreateLobbyOptions.BucketId = "PresenceLobby"; // TODO: What is this?
+	CreateLobbyOptions.BucketId = "PresenceLobby";
 	CreateLobbyOptions.bDisableHostMigration = false;
 	CreateLobbyOptions.bEnableRTCRoom = false;
 	CreateLobbyOptions.LocalRTCOptions = nullptr;
@@ -288,6 +287,10 @@ void ULobbySubsystem::LeaveLobby()
 	});
 }
 
+void ULobbySubsystem::StartListenServer(UObject* WorldContextObject, FLatentActionInfos LatentInfos)
+{
+}
+
 /**
  * Tries to join the lobby using the given handle.
  *
@@ -326,7 +329,6 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 			if(bSuccess)
 			{
 				LobbySubsystem->OnJoinLobbyCompleteDelegate.Broadcast(EJoinLobbyResultCode::Success, LobbySubsystem->Lobby);
-				
 				// TODO: Check if shadow lobby exist, if not create one.
 			}
 			else
@@ -349,18 +351,9 @@ void ULobbySubsystem::OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo*
 
 // --------------------------------------------
 
-
-
-
 /**
- * Set/updates the attribute on the lobby.
+ * Data needed in EOS_Lobby_UpdateLobby after updating an attribute.
  */
-void ULobbySubsystem::SetAttribute(const FLobbyAttribute& Attribute)
-{
-	// Just call ::SetAttributes with a single attribute
-	SetAttributes(TArray<FLobbyAttribute>{Attribute});
-}
-
 struct FSetAttributeCompleteClientData
 {
 	ULobbySubsystem* Self;
@@ -417,7 +410,11 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 	
 	Attributes = MoveTemp(NewAttributes);
 	if (!Attributes.Num()) return;
+
+
+	// Update the remaining attributes on the lobby.
 	
+	// Options for creating the Modification-Handle
 	EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
 	UpdateLobbyModificationOptions.ApiVersion = EOS_LOBBY_UPDATELOBBYMODIFICATION_API_LATEST;
 	UpdateLobbyModificationOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
@@ -426,6 +423,7 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 	EOS_HLobbyModification LobbyModificationHandle;
 	if (EOS_EResult Result = EOS_Lobby_UpdateLobbyModification(LobbyHandle, &UpdateLobbyModificationOptions, &LobbyModificationHandle); Result == EOS_EResult::EOS_Success)
 	{
+		// Loop through all attributes and add them to the Handle
 		TArray<FLobbyAttribute> SuccessfulAttributes;
 		for (const FLobbyAttribute Attribute : Attributes)
 		{
@@ -451,9 +449,6 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 					EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_DOUBLE;
 					EosAttributeData.Value.AsDouble = Attribute.DoubleValue;
 					break;
-				default:
-					UE_LOG(LogLobbySubsystem, Error, TEXT("Unsupported attribute type provided in ::SetLobbyAttribute"));
-					continue;
 			}
 
 			EOS_LobbyModification_AddAttributeOptions AttributeOptions;
@@ -461,7 +456,7 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 			AttributeOptions.Attribute = &EosAttributeData;
 			AttributeOptions.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
 
-			// Add the change to the modification-handle.
+			// Add the change to the Handle.
 			if (Result = EOS_LobbyModification_AddAttribute(LobbyModificationHandle, &AttributeOptions); Result != EOS_EResult::EOS_Success)
 			{
 				UE_LOG(LogLobbySubsystem, Log, TEXT("Failed to add an attribute to the LobbyModification. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
@@ -470,33 +465,33 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 
 			SuccessfulAttributes.Add(Attribute);
 		}
-
-		// Data we need in the callback.
-		FSetAttributeCompleteClientData* SetAttributeCompleteClientData = new FSetAttributeCompleteClientData{this, SuccessfulAttributes};
 			
-		// Update the lobby with the handle.
+		// Update the lobby with the Handle.
 		EOS_Lobby_UpdateLobbyOptions UpdateLobbyOptions;
 		UpdateLobbyOptions.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST;
 		UpdateLobbyOptions.LobbyModificationHandle = LobbyModificationHandle;
+		
+		FSetAttributeCompleteClientData* SetAttributeCompleteClientData = new FSetAttributeCompleteClientData{this, SuccessfulAttributes};
 		EOS_Lobby_UpdateLobby(LobbyHandle, &UpdateLobbyOptions, SetAttributeCompleteClientData, [](const EOS_Lobby_UpdateLobbyCallbackInfo* Data)
 		{
 			const FSetAttributeCompleteClientData* ClientData = static_cast<FSetAttributeCompleteClientData*>(Data->ClientData);
 			
 			if(Data->ResultCode == EOS_EResult::EOS_Success)
 			{
-				// Set the attribute on the lobby.
+				// Cache the updated attribute on the lobby.
 				TArray<FLobbyAttribute> ChangedAttributes = ClientData->ChangedAttributes;
 				for (FLobbyAttribute Attribute : ChangedAttributes) ClientData->Self->Lobby.Attributes.Add(Attribute.Key, Attribute);
-				UE_LOG(LogLobbySubsystem, Log, TEXT("Attribute(s) successfully added."))
+				UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby Attribute(s) successfully added."))
 			}
-			else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to update the lobby with the new attribute. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
+			else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to update the lobby with the new attribute(s). Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
 
 			delete ClientData;
 		});
-		
+
+		// Release the memory of the Handle.
 		EOS_LobbyModification_Release(LobbyModificationHandle);
 	}
-	else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create the lobby-modification-handle for setting the attribute. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
+	else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create the lobby-modification-handle for setting the attribute(s). Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
 }
 
 /**
@@ -604,16 +599,17 @@ void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackI
 
     	// Set/update the attribute on the lobby if it has changed.
     	if (bHasChanged) LobbySubsystem->Lobby.Attributes.Emplace(LatestAttribute.Key, LatestAttribute);
-
-        switch (LatestAttribute.Key)
-        {
-        case "GameStarted":
-	        // Broadcast game-start/end.
-        	LatestAttribute.BoolValue ? LobbySubsystem->OnGameStartDelegate.Broadcast() : LobbySubsystem->OnGameEndDelegate.Broadcast();
-		default:
-			// Broadcast that a custom attribute has changed.
-        	LobbySubsystem->OnLobbyAttributeChanged.Broadcast(LatestAttribute);
-        }
+    	
+    	// Broadcast corresponding delegate.
+    	if(const FString Key = LatestAttribute.Key; Key == "SessionID")
+    	{
+    		if(LatestAttribute.StringValue.IsEmpty()) return;
+    		const USessionSubsystem* SessionSubsystem = LobbySubsystem->GetGameInstance()->GetSubsystem<USessionSubsystem>();
+    		// todo
+    	}else
+    	{
+    		LobbySubsystem->OnLobbyAttributeChanged.Broadcast(LatestAttribute);
+    	}
     }
 }
 
@@ -741,8 +737,6 @@ void ULobbySubsystem::LoadLobby(TFunction<void(bool bSuccess)> OnCompleteCallbac
 	EOS_LobbyDetails_Info* LobbyInfo;
 	if(const EOS_EResult Result = EOS_LobbyDetails_CopyInfo(LobbyDetailsHandle, &CopyInfoOptions, &LobbyInfo); Result == EOS_EResult::EOS_Success)
 	{
-		// Successfully got the LobbyDetails
-
 		// Store the details we need
 		Lobby.ID = FString(LobbyInfo->LobbyId);
 		Lobby.OwnerID = EosProductIDToString(LobbyInfo->LobbyOwnerUserId);
@@ -795,10 +789,9 @@ void ULobbySubsystem::LoadLobby(TFunction<void(bool bSuccess)> OnCompleteCallbac
 	}
 	else
 	{
-		EOS_LobbyDetails_Info_Release(LobbyInfo);
+		EOS_LobbyDetails_Release(LobbyDetailsHandle);
 		OnCompleteCallback(false);
 	}
-	
 }
 
 
