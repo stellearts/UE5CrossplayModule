@@ -358,12 +358,13 @@ struct FSetAttributeCompleteClientData
 {
 	ULobbySubsystem* Self;
 	TArray<FLobbyAttribute> ChangedAttributes;
+	TFunction<void(const bool bWasSuccessful)> OnCompleteCallback;
 };
 
 /**
  * Set/update multiple attributes on the lobby.
  */
-void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
+void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback)
 {
 	// Can only update the lobby-attributes if owner.
 	if(Lobby.OwnerID != LocalUserSubsystem->GetLocalUser()->GetProductUserID())
@@ -373,19 +374,20 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 	}
 
 	// Only set/update attributes that unchanged, and are non-special attributes (reserved attributes for specific functionality).
-	TArray<FLobbyAttribute> NewAttributes;
+	TArray<FLobbyAttribute> ChangedAttributes;
 	for (const auto& Attribute : Attributes)
 	{
 		if (SpecialAttributes.Contains(Attribute.Key))
 		{
-			UE_LOG(LogLobbySubsystem, Warning, TEXT("%s is a special attribute that should not be set using ::SetAttributes, use the corresponding method for it instead."), *Attribute.Key);
-			continue;
+			UE_LOG(LogLobbySubsystem, Warning, TEXT("'%s' is a special attribute that should not be set using ::SetAttributes, use the corresponding method for it instead."), *Attribute.Key);
+			if(OnCompleteCallback) OnCompleteCallback(false);
+			return;
 		}
 		
 		const FLobbyAttribute* ExistingAttribute = Lobby.Attributes.Find(Attribute.Key);
 		if (!ExistingAttribute)
 		{
-			NewAttributes.Add(Attribute);
+			ChangedAttributes.Add(Attribute);
 			continue;
 		}
 
@@ -405,14 +407,17 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 			bShouldAdd = ExistingAttribute->DoubleValue != Attribute.DoubleValue;
 			break;
 		}
-		if (bShouldAdd) NewAttributes.Add(Attribute);
+		if (bShouldAdd) ChangedAttributes.Add(Attribute);
 	}
 	
-	Attributes = MoveTemp(NewAttributes);
-	if (!Attributes.Num()) return;
+	if (!ChangedAttributes.Num())
+	{
+		if(OnCompleteCallback) OnCompleteCallback(true);
+		return;
+	}
 
 
-	// Update the remaining attributes on the lobby.
+	// Update the changed attributes.
 	
 	// Options for creating the Modification-Handle
 	EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
@@ -471,7 +476,7 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 		UpdateLobbyOptions.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST;
 		UpdateLobbyOptions.LobbyModificationHandle = LobbyModificationHandle;
 		
-		FSetAttributeCompleteClientData* SetAttributeCompleteClientData = new FSetAttributeCompleteClientData{this, SuccessfulAttributes};
+		FSetAttributeCompleteClientData* SetAttributeCompleteClientData = new FSetAttributeCompleteClientData{this, SuccessfulAttributes, OnCompleteCallback};
 		EOS_Lobby_UpdateLobby(LobbyHandle, &UpdateLobbyOptions, SetAttributeCompleteClientData, [](const EOS_Lobby_UpdateLobbyCallbackInfo* Data)
 		{
 			const FSetAttributeCompleteClientData* ClientData = static_cast<FSetAttributeCompleteClientData*>(Data->ClientData);
@@ -481,9 +486,15 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 				// Cache the updated attribute on the lobby.
 				TArray<FLobbyAttribute> ChangedAttributes = ClientData->ChangedAttributes;
 				for (FLobbyAttribute Attribute : ChangedAttributes) ClientData->Self->Lobby.Attributes.Add(Attribute.Key, Attribute);
+				
 				UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby Attribute(s) successfully added."))
+				if(ClientData->OnCompleteCallback)  ClientData->OnCompleteCallback(true);
 			}
-			else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to update the lobby with the new attribute(s). Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
+			else
+			{
+				UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to update the lobby with the new attribute(s). Result-Code: [%s]"), *FString(EOS_EResult_ToString(Data->ResultCode)));
+				if(ClientData->OnCompleteCallback) ClientData->OnCompleteCallback(false);
+			}
 
 			delete ClientData;
 		});
@@ -491,7 +502,11 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes)
 		// Release the memory of the Handle.
 		EOS_LobbyModification_Release(LobbyModificationHandle);
 	}
-	else UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create the lobby-modification-handle for setting the attribute(s). Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
+	else
+	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create the lobby-modification-handle for setting the attribute(s). Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
+		if(OnCompleteCallback) OnCompleteCallback(false);
+	}
 }
 
 /**
@@ -564,7 +579,7 @@ TArray<FLobbyAttribute> ULobbySubsystem::GetAttributesFromDetailsHandle()
 void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data)
 {
     ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-    UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby update received."))
+    UE_LOG(LogLobbySubsystem, Log, TEXT("Lobby update received.")) // todo: callback gets called multiple times, try to solve.
 
 	TMap<FString, FLobbyAttribute> CachedAttributes = LobbySubsystem->Lobby.Attributes;
     TArray<FLobbyAttribute> LatestAttributes = LobbySubsystem->GetAttributesFromDetailsHandle();

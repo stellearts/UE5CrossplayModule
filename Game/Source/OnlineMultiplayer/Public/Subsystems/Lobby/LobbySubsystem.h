@@ -65,7 +65,7 @@ public:
 	FOnLobbyUserDisconnectedDelegate OnLobbyUserDisconnectedDelegate;
 	FOnLobbyUserKickedDelegate OnLobbyUserKickedDelegate;
 	FOnLobbyUserPromotedDelegate OnLobbyUserPromotedDelegate;
-
+	
 	FOnSessionIDAttributeAdded OnSessionIDAttributeChanged; // For joining a session
 	FOnLobbyAttributeChanged OnLobbyAttributeChanged; // Custom lobby attribute
 
@@ -86,8 +86,8 @@ private:
 	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
 
 public:
-	FORCEINLINE void SetAttribute(const FLobbyAttribute& Attribute) { SetAttributes(TArray<FLobbyAttribute>{Attribute}); }
-	void SetAttributes(TArray<FLobbyAttribute> Attributes);
+	FORCEINLINE void SetAttribute(const FLobbyAttribute& Attribute, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback) { SetAttributes(TArray<FLobbyAttribute>{Attribute}, OnCompleteCallback); }
+	void SetAttributes(TArray<FLobbyAttribute> Attributes, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback);
 
 private:
 	TArray<FLobbyAttribute> GetAttributesFromDetailsHandle();
