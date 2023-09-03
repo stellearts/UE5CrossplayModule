@@ -36,5 +36,6 @@ class UStartListenServer : public UOnlineBlueprintCallProxyBase
 	
 private:
 	UPROPERTY() UWorld* World;
+	FString ResponseString;
 	FDelegateHandle StartServerCompleteDelegateHandle;
 };

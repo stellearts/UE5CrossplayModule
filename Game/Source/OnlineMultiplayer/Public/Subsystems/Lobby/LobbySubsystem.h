@@ -86,10 +86,14 @@ private:
 	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
 
 public:
+	
 	FORCEINLINE void SetAttribute(const FLobbyAttribute& Attribute, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback) { SetAttributes(TArray<FLobbyAttribute>{Attribute}, OnCompleteCallback); }
 	void SetAttributes(TArray<FLobbyAttribute> Attributes, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback);
+	void SetSpecialAttribute(const FString& Key, const FString& Value, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback);
 
 private:
+	TArray<FLobbyAttribute> FilterAttributes(TArray<FLobbyAttribute>& Attributes);
+	TArray<FLobbyAttribute> AddAttributeOnModificationHandle(EOS_HLobbyModification& LobbyModificationHandle, const TArray<FLobbyAttribute>& Attributes);
 	TArray<FLobbyAttribute> GetAttributesFromDetailsHandle();
 	
 	static void OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackInfo* Data);
@@ -118,10 +122,10 @@ private:
 	void LoadLobby(TFunction<void(bool bSuccess)> OnCompleteCallback);
 
 	TArray<FString> UsersToLoad; // Used to check if user's have left after loading their data.
-	TArray<FString> SpecialAttributes{"SessionID", "SteamLobbyID", "PsnLobbyID", "XboxLobbyID"};
+	TArray<FString> SpecialAttributes{"ServerAddress", "SessionID", "SteamLobbyID", "PsnLobbyID", "XboxLobbyID"};
 
 public:
-	FORCEINLINE const FLobby& GetLobby() const { return Lobby; }
+	FORCEINLINE FLobby& GetLobby() { return Lobby; }
 	FORCEINLINE bool ActiveLobby() const { return !Lobby.ID.IsEmpty(); }
 
 

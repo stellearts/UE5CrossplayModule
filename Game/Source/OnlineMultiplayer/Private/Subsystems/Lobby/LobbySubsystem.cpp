@@ -118,11 +118,6 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 			LobbySubsystem->Lobby.MemberList = TMap<FString, UOnlineUser*>();
 			LobbySubsystem->Lobby.Settings.MaxMembers = ClientData->MaxMembers;
 
-			TArray<FLobbyAttribute> AttributeList = LobbySubsystem->GetAttributesFromDetailsHandle();
-			TMap<FString, FLobbyAttribute> AttributeMap;
-			for (FLobbyAttribute Attribute : AttributeList) AttributeMap.Add(Attribute.Key, Attribute);
-			LobbySubsystem->Lobby.Attributes = AttributeMap;
-
 			// Broadcast success.
 			LobbySubsystem->OnCreateLobbyCompleteDelegate.Broadcast(ECreateLobbyResultCode::Success, LobbySubsystem->Lobby);
 			
@@ -373,8 +368,7 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes, TFunctio
 		return;
 	}
 
-	// Only set/update attributes that unchanged, and are non-special attributes (reserved attributes for specific functionality).
-	TArray<FLobbyAttribute> ChangedAttributes;
+	// Return if given attributes contain a special attribute, which is not allowed.
 	for (const auto& Attribute : Attributes)
 	{
 		if (SpecialAttributes.Contains(Attribute.Key))
@@ -383,41 +377,15 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes, TFunctio
 			if(OnCompleteCallback) OnCompleteCallback(false);
 			return;
 		}
-		
-		const FLobbyAttribute* ExistingAttribute = Lobby.Attributes.Find(Attribute.Key);
-		if (!ExistingAttribute)
-		{
-			ChangedAttributes.Add(Attribute);
-			continue;
-		}
-
-		bool bShouldAdd = false;
-		switch (ExistingAttribute->Type)
-		{
-		case ELobbyAttributeType::Bool:
-			bShouldAdd = ExistingAttribute->BoolValue != Attribute.BoolValue;
-			break;
-		case ELobbyAttributeType::String:
-			bShouldAdd = ExistingAttribute->StringValue != Attribute.StringValue;
-			break;
-		case ELobbyAttributeType::Int64:
-			bShouldAdd = ExistingAttribute->IntValue != Attribute.IntValue;
-			break;
-		case ELobbyAttributeType::Double:
-			bShouldAdd = ExistingAttribute->DoubleValue != Attribute.DoubleValue;
-			break;
-		}
-		if (bShouldAdd) ChangedAttributes.Add(Attribute);
 	}
-	
+
+	// Only set/update attributes that unchanged, and are non-special attributes (reserved attributes for specific functionality).
+	const TArray<FLobbyAttribute> ChangedAttributes = FilterAttributes(Attributes);
 	if (!ChangedAttributes.Num())
 	{
 		if(OnCompleteCallback) OnCompleteCallback(true);
 		return;
 	}
-
-
-	// Update the changed attributes.
 	
 	// Options for creating the Modification-Handle
 	EOS_Lobby_UpdateLobbyModificationOptions UpdateLobbyModificationOptions;
@@ -428,49 +396,8 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes, TFunctio
 	EOS_HLobbyModification LobbyModificationHandle;
 	if (EOS_EResult Result = EOS_Lobby_UpdateLobbyModification(LobbyHandle, &UpdateLobbyModificationOptions, &LobbyModificationHandle); Result == EOS_EResult::EOS_Success)
 	{
-		// Loop through all attributes and add them to the Handle
-		TArray<FLobbyAttribute> SuccessfulAttributes;
-		for (const FLobbyAttribute Attribute : Attributes)
-		{
-			EOS_Lobby_AttributeData EosAttributeData;
-			EosAttributeData.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST;
-			EosAttributeData.Key = TCHAR_TO_ANSI(*Attribute.Key);
-			
-			switch (Attribute.Type)
-			{
-				case ELobbyAttributeType::Bool:
-					EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_BOOLEAN;
-					EosAttributeData.Value.AsBool = Attribute.BoolValue ? EOS_TRUE : EOS_FALSE;
-					break;
-				case ELobbyAttributeType::String:
-					EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING;
-					EosAttributeData.Value.AsUtf8 = TCHAR_TO_UTF8(*Attribute.StringValue);
-					break;
-				case ELobbyAttributeType::Int64:
-					EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_INT64;
-					EosAttributeData.Value.AsInt64 = Attribute.IntValue;
-					break;
-				case ELobbyAttributeType::Double:
-					EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_DOUBLE;
-					EosAttributeData.Value.AsDouble = Attribute.DoubleValue;
-					break;
-			}
-
-			EOS_LobbyModification_AddAttributeOptions AttributeOptions;
-			AttributeOptions.ApiVersion = EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST;
-			AttributeOptions.Attribute = &EosAttributeData;
-			AttributeOptions.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
-
-			// Add the change to the Handle.
-			if (Result = EOS_LobbyModification_AddAttribute(LobbyModificationHandle, &AttributeOptions); Result != EOS_EResult::EOS_Success)
-			{
-				UE_LOG(LogLobbySubsystem, Log, TEXT("Failed to add an attribute to the LobbyModification. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
-				continue;
-			}
-
-			SuccessfulAttributes.Add(Attribute);
-		}
-			
+		const TArray<FLobbyAttribute> SuccessfulAttributes = AddAttributeOnModificationHandle(LobbyModificationHandle, ChangedAttributes);
+		
 		// Update the lobby with the Handle.
 		EOS_Lobby_UpdateLobbyOptions UpdateLobbyOptions;
 		UpdateLobbyOptions.ApiVersion = EOS_LOBBY_UPDATELOBBY_API_LATEST;
@@ -507,6 +434,95 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes, TFunctio
 		UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to create the lobby-modification-handle for setting the attribute(s). Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
 		if(OnCompleteCallback) OnCompleteCallback(false);
 	}
+}
+
+void ULobbySubsystem::SetSpecialAttribute(const FString& Key, const FString& Value, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback)
+{
+	if(!SpecialAttributes.Contains(Key))
+	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("'%s' is not a special attribute, use ::SetAttribute(s) for setting custom attributes on the lobby."), *Key);
+		return;
+	}
+}
+
+TArray<FLobbyAttribute> ULobbySubsystem::FilterAttributes(TArray<FLobbyAttribute>& Attributes)
+{
+	TArray<FLobbyAttribute> ChangedAttributes;
+	for (const auto& Attribute : Attributes)
+	{
+		const FLobbyAttribute* ExistingAttribute = Lobby.Attributes.Find(Attribute.Key);
+		if (!ExistingAttribute)
+		{
+			ChangedAttributes.Add(Attribute);
+			continue;
+		}
+
+		bool bShouldAdd = false;
+		switch (ExistingAttribute->Type)
+		{
+		case ELobbyAttributeType::Bool:
+			bShouldAdd = ExistingAttribute->BoolValue != Attribute.BoolValue;
+			break;
+		case ELobbyAttributeType::String:
+			bShouldAdd = ExistingAttribute->StringValue != Attribute.StringValue;
+			break;
+		case ELobbyAttributeType::Int64:
+			bShouldAdd = ExistingAttribute->IntValue != Attribute.IntValue;
+			break;
+		case ELobbyAttributeType::Double:
+			bShouldAdd = ExistingAttribute->DoubleValue != Attribute.DoubleValue;
+			break;
+		}
+		if (bShouldAdd) ChangedAttributes.Add(Attribute);
+	}
+	return ChangedAttributes;
+}
+
+TArray<FLobbyAttribute> ULobbySubsystem::AddAttributeOnModificationHandle(EOS_HLobbyModification& LobbyModificationHandle, const TArray<FLobbyAttribute>& Attributes)
+{
+	// Loop through all attributes and add them to the Handle
+	TArray<FLobbyAttribute> SuccessfulAttributes;
+	for (const FLobbyAttribute Attribute : Attributes)
+	{
+		EOS_Lobby_AttributeData EosAttributeData;
+		EosAttributeData.ApiVersion = EOS_LOBBY_ATTRIBUTEDATA_API_LATEST;
+		EosAttributeData.Key = TCHAR_TO_ANSI(*Attribute.Key);
+			
+		switch (Attribute.Type)
+		{
+		case ELobbyAttributeType::Bool:
+			EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_BOOLEAN;
+			EosAttributeData.Value.AsBool = Attribute.BoolValue ? EOS_TRUE : EOS_FALSE;
+			break;
+		case ELobbyAttributeType::String:
+			EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_STRING;
+			EosAttributeData.Value.AsUtf8 = TCHAR_TO_UTF8(*Attribute.StringValue);
+			break;
+		case ELobbyAttributeType::Int64:
+			EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_INT64;
+			EosAttributeData.Value.AsInt64 = Attribute.IntValue;
+			break;
+		case ELobbyAttributeType::Double:
+			EosAttributeData.ValueType = EOS_ELobbyAttributeType::EOS_AT_DOUBLE;
+			EosAttributeData.Value.AsDouble = Attribute.DoubleValue;
+			break;
+		}
+
+		EOS_LobbyModification_AddAttributeOptions AttributeOptions;
+		AttributeOptions.ApiVersion = EOS_LOBBYMODIFICATION_ADDATTRIBUTE_API_LATEST;
+		AttributeOptions.Attribute = &EosAttributeData;
+		AttributeOptions.Visibility = EOS_ELobbyAttributeVisibility::EOS_LAT_PUBLIC;
+
+		// Add the change to the Handle.
+		if (const EOS_EResult Result = EOS_LobbyModification_AddAttribute(LobbyModificationHandle, &AttributeOptions); Result != EOS_EResult::EOS_Success)
+		{
+			UE_LOG(LogLobbySubsystem, Log, TEXT("Failed to add an attribute to the LobbyModification. Result-Code: [%s]"), *FString(EOS_EResult_ToString(Result)));
+			continue;
+		}
+
+		SuccessfulAttributes.Add(Attribute);
+	}
+	return SuccessfulAttributes;
 }
 
 /**
@@ -546,6 +562,8 @@ TArray<FLobbyAttribute> ULobbySubsystem::GetAttributesFromDetailsHandle()
 		
 		// Create the attribute and set it to the correct type.
 		FLobbyAttribute LobbyAttribute;
+		LobbyAttribute.Key = EosAttribute->Data->Key;
+		
 		switch (EosAttribute->Data->ValueType)
 		{
 		case EOS_ELobbyAttributeType::EOS_AT_BOOLEAN:
@@ -565,10 +583,12 @@ TArray<FLobbyAttribute> ULobbySubsystem::GetAttributesFromDetailsHandle()
 			LobbyAttribute.DoubleValue = EosAttribute->Data->Value.AsDouble;
 			break;
 		}
-
+		
 		LobbyAttributes.Add(LobbyAttribute);
+		EOS_Lobby_Attribute_Release(EosAttribute);
 	}
 
+	EOS_LobbyDetails_Release(LobbyDetailsHandle);
 	return LobbyAttributes;
 }
 
@@ -614,6 +634,7 @@ void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackI
 
     	// Set/update the attribute on the lobby if it has changed.
     	if (bHasChanged) LobbySubsystem->Lobby.Attributes.Emplace(LatestAttribute.Key, LatestAttribute);
+    	else continue;
     	
     	// Broadcast corresponding delegate.
     	if(const FString Key = LatestAttribute.Key; Key == "SessionID")
@@ -756,6 +777,11 @@ void ULobbySubsystem::LoadLobby(TFunction<void(bool bSuccess)> OnCompleteCallbac
 		Lobby.ID = FString(LobbyInfo->LobbyId);
 		Lobby.OwnerID = EosProductIDToString(LobbyInfo->LobbyOwnerUserId);
 		Lobby.Settings.MaxMembers = LobbyInfo->MaxMembers;
+
+		TArray<FLobbyAttribute> AttributeList = GetAttributesFromDetailsHandle();
+		TMap<FString, FLobbyAttribute> AttributeMap;
+		for (FLobbyAttribute Attribute : AttributeList) AttributeMap.Add(Attribute.Key, Attribute);
+		Lobby.Attributes = AttributeMap;
 		
 		// Release the info to avoid memory leaks
 		EOS_LobbyDetails_Info_Release(LobbyInfo);

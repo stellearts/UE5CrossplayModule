@@ -4,7 +4,7 @@
 #include "Subsystems/Lobby/LobbySubsystem.h"
 #include "Subsystems/Session/SessionSubsystem.h"
 #include "HttpModule.h"
-#include "GameFramework/GameModeBase.h"
+#include "GameModes/MultiplayerGameMode.h"
 #include "Interfaces/IHttpResponse.h"
 
 
@@ -23,22 +23,28 @@ UStartListenServer* UStartListenServer::StartListenServer(UObject* WorldContextO
 void UStartListenServer::Activate()
 {
 	// Check if using correct GameMode.
-	// todo
+	const AMultiplayerGameMode* MultiplayerGameMode = Cast<AMultiplayerGameMode>(World->GetAuthGameMode());
+	if(!MultiplayerGameMode)
+	{
+		UE_LOG(LogLobbySubsystem, Warning, TEXT("GameMode class that is in use should be derived from 'AMultiplayerGameMode' when calling StartListenServer"));
+		OnFailure.Broadcast(); // todo error message
+		return;
+	}
 	
-	// Get public address for server.
 	FHttpModule* Http = &FHttpModule::Get();
 	if(!Http || !Http->IsHttpEnabled())
 	{
 		OnFailure.Broadcast(); // todo error message
 		return;
 	}
-	
+
+	// Get public address.
 	const auto Request = Http->CreateRequest();
 	Request->SetURL("http://api.ipify.org");
 	Request->SetHeader("Content-Type" ,"text/html");
-	Request->SetTimeout(3);
-
+	Request->SetTimeout(10); // todo, enum state member variable so that this can't get called multiple times while a request is busy.
 	Request->OnProcessRequestComplete().BindUObject(this, &UStartListenServer::OnHttpRequestCompleted);
+	
 	if (!Request->ProcessRequest())
 	{
 		OnFailure.Broadcast(); // todo error message
@@ -53,14 +59,14 @@ void UStartListenServer::OnHttpRequestCompleted(TSharedPtr<IHttpRequest, ESPMode
 		return;
 	}
 	
-	FString ResponseString = Response.Get()->GetContentAsString();
+	ResponseString = Response.Get()->GetContentAsString();
 	if(ResponseString.IsEmpty())
 	{
 		OnFailure.Broadcast();
 		return;
 	}
 	
-	StartServerCompleteDelegateHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddLambda([this, ResponseString](const UWorld* World)
+	StartServerCompleteDelegateHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddLambda([this](const UWorld* World)
 	{
 		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(StartServerCompleteDelegateHandle);
 	

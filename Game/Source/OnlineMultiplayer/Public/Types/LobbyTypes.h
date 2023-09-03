@@ -99,6 +99,8 @@ struct FLobby
 	
 	FORCEINLINE void AddMember(UOnlineUser* OnlineUser) { MemberList.Add(OnlineUser->GetProductUserID(), OnlineUser); }
 	FORCEINLINE void RemoveMember(const FString& ProductUserID) { MemberList.Remove(ProductUserID); }
+	FORCEINLINE UOnlineUser** GetMember(const FString& ProductUserID) { return MemberList.Find(ProductUserID); }
+	
 	TArray<UOnlineUser*> GetMemberList() const
 	{
 		TArray<UOnlineUser*> OutArr;

@@ -61,7 +61,7 @@ void USessionSubsystem::CreateSession(const FSessionSettings& Settings)
 		}
 	}
 
-	AMultiplayerGameMode* MultiplayerGameMode = Cast<AMultiplayerGameMode>(GetWorld()->GetAuthGameMode());
+	const AMultiplayerGameMode* MultiplayerGameMode = Cast<AMultiplayerGameMode>(GetWorld()->GetAuthGameMode());
 	if(!MultiplayerGameMode)
 	{
 		UE_LOG(LogSessionSubsystem, Log, TEXT("Can only create a session when using a GameMode derived from 'AMultiplayerGameMode'."));
@@ -107,7 +107,7 @@ void USessionSubsystem::CreateSession(const FSessionSettings& Settings)
 				SessionSubsystem->OnCreateSessionCompleteDelegate.Broadcast(ECreateSessionResultCode::Success, SessionSubsystem->Session);
 
 				// If in a lobby, invite all its members to this session.
-				if(const ULobbySubsystem* LobbySubsystem = SessionSubsystem->LobbySubsystem; LobbySubsystem->ActiveLobby())
+				if(ULobbySubsystem* LobbySubsystem = SessionSubsystem->LobbySubsystem; LobbySubsystem->ActiveLobby())
 				{
 					for (UOnlineUser* LobbyMember : LobbySubsystem->GetLobby().GetMemberList())
 					{
