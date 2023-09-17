@@ -60,6 +60,13 @@ void ULobbySubsystem::Deinitialize()
 // --------------------------------------------
 
 
+struct FCreateLobbyClientData
+{
+	ULobbySubsystem* Self;
+	ULocalUserSubsystem* LocalUserSubsystem;
+	int32 MaxMembers;
+};
+
 void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 {
 	if(ActiveLobby())
@@ -73,7 +80,7 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 	CreateLobbyOptions.ApiVersion = EOS_LOBBY_CREATELOBBY_API_LATEST;
 	CreateLobbyOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	CreateLobbyOptions.MaxLobbyMembers = MaxMembers;
-	CreateLobbyOptions.PermissionLevel = EOS_ELobbyPermissionLevel::EOS_LPL_INVITEONLY;
+	CreateLobbyOptions.PermissionLevel = EOS_ELobbyPermissionLevel::EOS_LPL_INVITEONLY; // Todo option setting
 	CreateLobbyOptions.bPresenceEnabled = true;
 	CreateLobbyOptions.bAllowInvites = true;
 	CreateLobbyOptions.BucketId = "PresenceLobby";
@@ -83,14 +90,11 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 	CreateLobbyOptions.LobbyId = nullptr;
 	CreateLobbyOptions.bEnableJoinById = true;
 	CreateLobbyOptions.bRejoinAfterKickRequiresInvite = true;
+	CreateLobbyOptions.AllowedPlatformIds = nullptr;
+	CreateLobbyOptions.AllowedPlatformIdsCount = 0;
+	CreateLobbyOptions.bCrossplayOptOut = false;
 	
 	// ClientData to pass to the callback
-	struct FCreateLobbyClientData
-	{
-		ULobbySubsystem* Self;
-		ULocalUserSubsystem* LocalUserSubsystem;
-		int32 MaxMembers;
-	};
 	FCreateLobbyClientData* CreateLobbyClientData = new FCreateLobbyClientData();
 	CreateLobbyClientData->Self = this;
 	CreateLobbyClientData->LocalUserSubsystem = GetGameInstance()->GetSubsystem<ULocalUserSubsystem>();
@@ -138,7 +142,6 @@ void ULobbySubsystem::CreateLobby(const int32 MaxMembers)
 		}
 		
 		delete ClientData;
-		// End Lambda.
     });
 }
 
@@ -265,13 +268,14 @@ void ULobbySubsystem::LeaveLobby()
 	EOS_Lobby_LeaveLobby(LobbyHandle, &LeaveLobbyOptions, this, [](const EOS_Lobby_LeaveLobbyCallbackInfo* Data)
 	{
 		ULobbySubsystem* LobbySubsystem = static_cast<ULobbySubsystem*>(Data->ClientData);
-		if(Data->ResultCode == EOS_EResult::EOS_Success)
+
+		// Clear lobby data
+		LobbySubsystem->Lobby.Reset();
+		
+		if(Data->ResultCode == EOS_EResult::EOS_Success || Data->ResultCode == EOS_EResult::EOS_NotFound)
 		{
 			// Leave shadow lobby as well.
 			LobbySubsystem->LocalPlatformLobbySubsystem->LeaveLobby();
-
-			// Clear lobby details and broadcast success.
-			LobbySubsystem->Lobby.Reset();
 			LobbySubsystem->OnLeaveLobbyCompleteDelegate.Broadcast(ELeaveLobbyResultCode::Success);
 		}
 		else
@@ -369,15 +373,15 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes, TFunctio
 	}
 
 	// Return if given attributes contain a special attribute, which is not allowed.
-	for (const auto& Attribute : Attributes)
-	{
-		if (SpecialAttributes.Contains(Attribute.Key))
-		{
-			UE_LOG(LogLobbySubsystem, Warning, TEXT("'%s' is a special attribute that should not be set using ::SetAttributes, use the corresponding method for it instead."), *Attribute.Key);
-			if(OnCompleteCallback) OnCompleteCallback(false);
-			return;
-		}
-	}
+	// for (const auto& Attribute : Attributes)
+	// {
+	// 	if (SpecialAttributes.Contains(Attribute.Key))
+	// 	{
+	// 		UE_LOG(LogLobbySubsystem, Warning, TEXT("'%s' is a special attribute that should not be set using ::SetAttributes, use the corresponding method for it instead."), *Attribute.Key);
+	// 		if(OnCompleteCallback) OnCompleteCallback(false);
+	// 		return;
+	// 	}
+	// }
 
 	// Only set/update attributes that unchanged, and are non-special attributes (reserved attributes for specific functionality).
 	const TArray<FLobbyAttribute> ChangedAttributes = FilterAttributes(Attributes);
@@ -742,13 +746,15 @@ EOS_HLobbyDetails ULobbySubsystem::GetLobbyDetailsHandle() const
 {
 	EOS_Lobby_CopyLobbyDetailsHandleOptions LobbyDetailsOptions;
 	LobbyDetailsOptions.ApiVersion = EOS_LOBBY_COPYLOBBYDETAILSHANDLE_API_LATEST;
-	LobbyDetailsOptions.LobbyId = TCHAR_TO_UTF8(*Lobby.ID);
+	const std::string ConvertedLobbyID = TCHAR_TO_UTF8(*Lobby.ID);
+	LobbyDetailsOptions.LobbyId = ConvertedLobbyID.c_str();
 	LobbyDetailsOptions.LocalUserId = EosProductIDFromString(LocalUserSubsystem->GetLocalUser()->GetProductUserID());
 	
 	EOS_HLobbyDetails LobbyDetailsHandle;
-	if(EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle) == EOS_EResult::EOS_Success) return LobbyDetailsHandle;
+	const EOS_EResult Result = EOS_Lobby_CopyLobbyDetailsHandle(LobbyHandle, &LobbyDetailsOptions, &LobbyDetailsHandle);
+	if(Result == EOS_EResult::EOS_Success) return LobbyDetailsHandle;
 	
-	UE_LOG(LogLobbySubsystem, Log, TEXT("Failed to get the Lobby-Details-Handle."));
+	UE_LOG(LogLobbySubsystem, Warning, TEXT("Failed to get the Lobby-Details-Handle."));
 	return nullptr;
 }
 

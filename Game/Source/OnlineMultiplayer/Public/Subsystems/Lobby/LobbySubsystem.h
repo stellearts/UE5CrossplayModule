@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "eos_sdk.h"
-#include "LatentActions.h"
 #include "Types/UserTypes.h"
 #include "Types/LobbyTypes.h"
 #include "LobbySubsystem.generated.h"

@@ -81,6 +81,7 @@ void UStartListenServer::OnHttpRequestCompleted(TSharedPtr<IHttpRequest, ESPMode
 			UE_LOG(LogLobbySubsystem, Warning, TEXT("Requesting session members to join server..."));
 
 			// todo: make players in session know that they can join.
+			// todo this will come later if needed, not required for p2p but for now ill keep it here.
 			
 			OnSuccess.Broadcast();
 		}
@@ -94,12 +95,14 @@ void UStartListenServer::OnHttpRequestCompleted(TSharedPtr<IHttpRequest, ESPMode
 			ServerAddressAttribute.Key = "ServerAddress";
 			ServerAddressAttribute.Type = ELobbyAttributeType::String;
 			ServerAddressAttribute.StringValue = ResponseString;
-			LobbySubsystem->SetAttribute(ServerAddressAttribute, [this, World](const bool bSuccess)
+			LobbySubsystem->SetAttribute(ServerAddressAttribute, [this, World, LobbySubsystem](const bool bSuccess)
 			{
 				if(bSuccess)
 				{
-					const TArray<UOnlineUser*> LobbyMembers;
+					const TArray<UOnlineUser*> LobbyMembers = LobbySubsystem->GetLobby().GetMemberList();
+					const TArray<UOnlineUser*> JoinedMembers;
 
+					UE_LOG(LogLobbySubsystem, Warning, TEXT("Waiting for members to join..."));
 					// Check for people joining unreal server here...
 					// todo: player-controller joins server, player that join's sets their product-user-id variable that gets replicated to server and validate.
 					

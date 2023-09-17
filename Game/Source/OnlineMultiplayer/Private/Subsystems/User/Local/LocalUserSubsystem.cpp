@@ -24,7 +24,7 @@ void ULocalUserSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// Set platform
 	LocalUser->SetPlatform(EPlatform::Steam);
 	LocalUser->SetUserID(SteamLocalUserSubsystem->GetSteamID().ConvertToUint64());
-	if(LocalUser) UE_LOG(LogLocalUserSubsystem, Warning, TEXT("LocalUser initialized!"));
+	if(LocalUser) UE_LOG(LogLocalUserSubsystem, Log, TEXT("LocalUser initialized!"));
 
 	// Init platform-local-user subsystems
 	SteamLocalUserSubsystem = Collection.InitializeDependency<USteamLocalUserSubsystem>();

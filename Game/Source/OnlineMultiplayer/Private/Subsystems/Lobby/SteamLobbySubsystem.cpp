@@ -87,12 +87,12 @@ void USteamLobbySubsystem::OnLobbyDataUpdateComplete(LobbyDataUpdate_t* Data)
 {
 	if(Data->m_bSuccess)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("OnLobbyDataUpdateComplete Success"));
+		UE_LOG(LogSteamLobbySubsystem, Log, TEXT("Steam lobby-data successfully updated"));
 	}
 	else
 	{
 		// Should only be false if RequestLobbyData() was called on a lobby that no longer exists, according to the Steam api.
-		UE_LOG(LogTemp, Warning, TEXT("OnLobbyDataUpdateComplete Fail"));
+		UE_LOG(LogSteamLobbySubsystem, Warning, TEXT("Steam lobby-data failed to update"));
 	}
 }
 

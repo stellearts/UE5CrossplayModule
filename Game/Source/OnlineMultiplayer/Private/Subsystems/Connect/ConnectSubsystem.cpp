@@ -31,9 +31,11 @@ void UConnectSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 void UConnectSubsystem::Login()
 {
 	// TODO: Also check if user is already logged in. Would prevent api call.
-	if(!ConnectHandle) return;
-
-	// TODO: Change to more generic name like GetLoginToken or something which will then call the correct function, depending on the platform. For steam: GetSteamSessionTicket.
+	if(!ConnectHandle)
+	{
+		UE_LOG(LogConnectSubsystem, Error, TEXT("ConnectHandle is invalid meaning that EOS failed to initialize properly. Check if everything is correctly setup."))
+	}
+	
 	LocalUserSubsystem->RequestSteamSessionTicket([this](const std::string& TicketString)
 	{
 		EOS_Connect_Credentials Credentials;

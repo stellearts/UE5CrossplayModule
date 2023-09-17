@@ -71,8 +71,8 @@ protected:
 
 public:
 	// Getters
-	UFUNCTION(BlueprintPure, Category = "User|Details") FORCEINLINE FString& GetProductUserID() { return ProductUserID; }
-	UFUNCTION(BlueprintPure, Category = "User|Details") FORCEINLINE FString& GetEpicAccountID() { return EpicAccountID; }
+	UFUNCTION(BlueprintPure, Category = "User|Details") FORCEINLINE FString GetProductUserID() { return ProductUserID; }
+	UFUNCTION(BlueprintPure, Category = "User|Details") FORCEINLINE FString GetEpicAccountID() { return EpicAccountID; }
 	UFUNCTION(BlueprintPure, Category = "User|Details") FORCEINLINE FString GetUserID() const { return PlatformUser.UserID; }
 	UFUNCTION(BlueprintPure, Category = "User|Details") FORCEINLINE FString GetUsername() const { return PlatformUser.Username; }
 	UFUNCTION(BlueprintPure, Category = "User|Details") FORCEINLINE UTexture2D* GetAvatar() const { return PlatformUser.Avatar; }
