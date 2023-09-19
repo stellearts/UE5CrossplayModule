@@ -72,7 +72,7 @@ void UConnectSubsystem::OnLoginComplete(const EOS_Connect_LoginCallbackInfo* Dat
 	{
 		UE_LOG(LogConnectSubsystem, Log, TEXT("Logged in to Connect-Interface."))
 		LocalUser->SetProductUserID(EosProductIDToString(Data->LocalUserId));
-		ConnectSubsystem->OnConnectLoginCompleteDelegate.ExecuteIfBound(true, LocalUser);
+		ConnectSubsystem->OnConnectLoginCompleteDelegate.Broadcast(true, LocalUser);
 	}
 	else if(Data->ResultCode == EOS_EResult::EOS_InvalidUser)
 	{
@@ -83,7 +83,7 @@ void UConnectSubsystem::OnLoginComplete(const EOS_Connect_LoginCallbackInfo* Dat
 	else
 	{
 		UE_LOG(LogConnectSubsystem, Error, TEXT("LoginConnect failed with error code %hs"), EOS_EResult_ToString(Data->ResultCode));
-		ConnectSubsystem->OnConnectLoginCompleteDelegate.ExecuteIfBound(false, nullptr);
+		ConnectSubsystem->OnConnectLoginCompleteDelegate.Broadcast(false, nullptr);
 	}
 }
 
@@ -118,7 +118,7 @@ void UConnectSubsystem::CreateNewUser()
 		else
 		{
 			UE_LOG(LogConnectSubsystem, Error, TEXT("CreateUser failed with error code %hs"), EOS_EResult_ToString(Data->ResultCode));
-			ConnectSubsystem->OnConnectLoginCompleteDelegate.ExecuteIfBound(false, nullptr);
+			ConnectSubsystem->OnConnectLoginCompleteDelegate.Broadcast(false, nullptr);
 		}
 	});
 }

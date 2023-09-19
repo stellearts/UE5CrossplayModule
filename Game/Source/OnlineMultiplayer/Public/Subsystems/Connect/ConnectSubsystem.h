@@ -10,7 +10,7 @@
 DECLARE_LOG_CATEGORY_EXTERN(LogConnectSubsystem, Log, All);
 inline DEFINE_LOG_CATEGORY(LogConnectSubsystem);
 
-DECLARE_DYNAMIC_DELEGATE_TwoParams(FOnConnectLoginCompleteDelegate, const bool, bSuccess, UOnlineUser*, LocalUser);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FOnConnectLoginCompleteDelegate, const bool bSuccess, UOnlineUser* LocalUser);
 
 
 
