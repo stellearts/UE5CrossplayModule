@@ -641,11 +641,11 @@ void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackI
     	else continue;
     	
     	// Broadcast corresponding delegate.
-    	if(const FString Key = LatestAttribute.Key; Key == "SessionID")
+    	if(const FString Key = LatestAttribute.Key; Key == "ServerAddress")
     	{
-    		if(LatestAttribute.StringValue.IsEmpty()) return;
-    		const USessionSubsystem* SessionSubsystem = LobbySubsystem->GetGameInstance()->GetSubsystem<USessionSubsystem>();
-    		// todo
+    		// If the Server-Address is set, it means that the host wants to start the server and is waiting for members to join.
+    		if(!LatestAttribute.StringValue.IsEmpty()) LobbySubsystem->OnLobbyStartedDelegate.Broadcast(LatestAttribute.StringValue); // todo Only broadcast when not the owner.
+    		else LobbySubsystem->OnLobbyStoppedDelegate.Broadcast();
     	}else
     	{
     		LobbySubsystem->OnLobbyAttributeChanged.Broadcast(LatestAttribute);
@@ -698,7 +698,11 @@ void ULobbySubsystem::OnLobbyUserJoined(const FString& TargetUserID)
 	OnlineUserSubsystem->GetOnlineUser(TargetUserID, [this, TargetUserID](const FGetOnlineUserResult Result)
 	{
 		// Check if user is still in lobby after this fetch
-		if(UsersToLoad.Contains(TargetUserID)) OnLobbyUserJoinedDelegate.Broadcast(Result.OnlineUser);
+		if(UsersToLoad.Contains(TargetUserID))
+		{
+			Lobby.AddMember(Result.OnlineUser);
+			OnLobbyUserJoinedDelegate.Broadcast(Result.OnlineUser);
+		}
 		else UE_LOG(LogLobbySubsystem, Log, TEXT("User left before we could load their data. OnLobbyUserJoinedDelegate will not be broadcasted."));
 	});
 }

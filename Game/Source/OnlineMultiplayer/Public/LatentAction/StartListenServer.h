@@ -7,6 +7,8 @@
 #include "Net/OnlineBlueprintCallProxyBase.h"
 #include "StartListenServer.generated.h"
 
+class ULobbySubsystem;
+
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FProxyStartListenServerCompleteDelegate);
 
 
@@ -32,10 +34,18 @@ class UStartListenServer : public UOnlineBlueprintCallProxyBase
 	
 	virtual void Activate() override;
 	void OnHttpRequestCompleted(TSharedPtr<class IHttpRequest, ESPMode::ThreadSafe> Request, TSharedPtr<class IHttpResponse, ESPMode::ThreadSafe> Response, bool bWasSuccessful);
+	void WaitForPlayersToJoin(ULobbySubsystem* LobbySubsystem);
+	void StopServer();
 	
 	
 private:
 	UPROPERTY() UWorld* World;
 	FString ResponseString;
 	FDelegateHandle StartServerCompleteDelegateHandle;
+	FDelegateHandle StopServerCompleteDelegateHandle;
+	FDelegateHandle OnPlayerProductIDSetDelegateHandle;
+	
+	TArray<FString> JoinedMembers;
+	FTimerHandle TimeoutTimerHandle;
+	static constexpr float TimeoutDuration = 30.0f;
 };

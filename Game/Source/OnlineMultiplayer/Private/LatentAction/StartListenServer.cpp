@@ -6,6 +6,7 @@
 #include "HttpModule.h"
 #include "GameModes/MultiplayerGameMode.h"
 #include "Interfaces/IHttpResponse.h"
+#include "PlayerStates/MultiplayerPlayerState.h"
 
 
 UStartListenServer::UStartListenServer(const FObjectInitializer& ObjectInitializer)
@@ -55,6 +56,7 @@ void UStartListenServer::OnHttpRequestCompleted(TSharedPtr<IHttpRequest, ESPMode
 {
 	if(!bWasSuccessful)
 	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("UStartListenServer::OnHttpRequestCompleted has failed with an unknown error."));
 		OnFailure.Broadcast();
 		return;
 	}
@@ -62,57 +64,43 @@ void UStartListenServer::OnHttpRequestCompleted(TSharedPtr<IHttpRequest, ESPMode
 	ResponseString = Response.Get()->GetContentAsString();
 	if(ResponseString.IsEmpty())
 	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("UStartListenServer::OnHttpRequestCompleted has returned an empty ResponseString for the Server-Address."));
 		OnFailure.Broadcast();
 		return;
 	}
 	
-	StartServerCompleteDelegateHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddLambda([this](const UWorld* World)
+	StartServerCompleteDelegateHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddLambda([this](UWorld* NewWorld)
 	{
 		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(StartServerCompleteDelegateHandle);
+
+		// We loaded into a copy of the level we were in, so the world is also different now.
+		World = NewWorld;
 	
-		const UGameInstance* GameInstance = World->GetGameInstance();
+		const UGameInstance* GameInstance = NewWorld->GetGameInstance();
 		ULobbySubsystem* LobbySubsystem = GameInstance->GetSubsystem<ULobbySubsystem>();
 		const USessionSubsystem* SessionSubsystem = GameInstance->GetSubsystem<USessionSubsystem>();
 	
-		// If in a lobby or session, wait until all members have joined first before broadcasting success.
-		if(SessionSubsystem->ActiveSession())
-		{
-			// If in session, then let members know that they can join the server. Lobby members should join session in this case.
-			UE_LOG(LogLobbySubsystem, Warning, TEXT("Requesting session members to join server..."));
-
-			// todo: make players in session know that they can join.
-			// todo this will come later if needed, not required for p2p but for now ill keep it here.
-			
-			OnSuccess.Broadcast();
-		}
-		else if(LobbySubsystem->ActiveLobby())
+		if(LobbySubsystem->ActiveLobby())
 		{
 			// If only in a lobby, then set the address attribute on the lobby so that they can join.
-			UE_LOG(LogLobbySubsystem, Warning, TEXT("Requesting lobby members to join server..."));
+			UE_LOG(LogLobbySubsystem, Log, TEXT("Requesting lobby members to join server..."));
 	
 			// Set public address attribute on lobby.
 			FLobbyAttribute ServerAddressAttribute;
 			ServerAddressAttribute.Key = "ServerAddress";
 			ServerAddressAttribute.Type = ELobbyAttributeType::String;
 			ServerAddressAttribute.StringValue = ResponseString;
-			LobbySubsystem->SetAttribute(ServerAddressAttribute, [this, World, LobbySubsystem](const bool bSuccess)
+			LobbySubsystem->SetAttribute(ServerAddressAttribute, [this, NewWorld, LobbySubsystem](const bool bSuccess)
 			{
 				if(bSuccess)
 				{
-					const TArray<UOnlineUser*> LobbyMembers = LobbySubsystem->GetLobby().GetMemberList();
-					const TArray<UOnlineUser*> JoinedMembers;
-
-					UE_LOG(LogLobbySubsystem, Warning, TEXT("Waiting for members to join..."));
-					// Check for people joining unreal server here...
-					// todo: player-controller joins server, player that join's sets their product-user-id variable that gets replicated to server and validate.
-					
-					OnSuccess.Broadcast();
+					WaitForPlayersToJoin(LobbySubsystem);
 				}
 				else
 				{
-					OnFailure.Broadcast();
-					APlayerController* PlayerController = World->GetFirstPlayerController();
-					if(PlayerController) PlayerController->ClientTravel(TEXT("MainMenu"), TRAVEL_Absolute);
+					// Stop hosting.
+					UE_LOG(LogLobbySubsystem, Error, TEXT("Failed to set the 'ServerAddressAttribute' on the lobby. Players cannot join without it."));
+					StopServer();
 				}
 			});
 		}
@@ -123,4 +111,73 @@ void UStartListenServer::OnHttpRequestCompleted(TSharedPtr<IHttpRequest, ESPMode
 	});
 
 	World->ServerTravel("?listen");
+}
+
+void UStartListenServer::WaitForPlayersToJoin(ULobbySubsystem* LobbySubsystem)
+{
+	const TArray<UOnlineUser*> LobbyMembers = LobbySubsystem->GetLobby().GetMemberList();
+
+	if(!LobbyMembers.Num())
+	{
+		OnSuccess.Broadcast();
+		return;
+	}
+
+	UE_LOG(LogLobbySubsystem, Log, TEXT("Waiting for members to join..."));
+
+	// Retrieve the local PlayerState and attempt to cast it to AMultiplayerPlayerState
+	APlayerState* LocalPlayerState = World->GetFirstPlayerController()->PlayerState;
+	World->GetFirstPlayerController()->PlayerState;
+
+	if(AMultiplayerPlayerState* MultiplayerPlayerState = Cast<AMultiplayerPlayerState>(LocalPlayerState))
+	{
+		JoinedMembers.Empty();
+		
+		// Bind to the delegate
+		OnPlayerProductIDSetDelegateHandle = MultiplayerPlayerState->OnPlayerProductIDSetDelegate.AddLambda([&](const FString& ProductUserID)
+		{
+			JoinedMembers.Add(ProductUserID);
+
+			// todo also check if Lobby member(s) have left during this async operation.
+			if(JoinedMembers.Num() == LobbyMembers.Num())
+			{
+				MultiplayerPlayerState->OnPlayerProductIDSetDelegate.Remove(OnPlayerProductIDSetDelegateHandle);
+				
+				World->GetTimerManager().ClearTimer(TimeoutTimerHandle);
+				OnSuccess.Broadcast();
+			}
+		});
+
+		// Timer for a timeout failure case
+		World->GetTimerManager().SetTimer(TimeoutTimerHandle, [&]()
+		{
+			MultiplayerPlayerState->OnPlayerProductIDSetDelegate.Remove(OnPlayerProductIDSetDelegateHandle);
+			StopServer();
+			
+		}, TimeoutDuration, false);
+	}
+	else
+	{
+		UE_LOG(LogLobbySubsystem, Error, TEXT("PlayerState used is not of type 'AMultiplayerPlayerState', please derive your custom PlayerState from this base class."));
+		StopServer();
+	}
+}
+
+/*
+ * When some process has failed during the creation of a server, we need to stop the server and broadcast a failure.
+ */
+void UStartListenServer::StopServer()
+{
+	StopServerCompleteDelegateHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddLambda([this](UWorld* NewWorld)
+	{
+		FCoreUObjectDelegates::PostLoadMapWithWorld.Remove(StopServerCompleteDelegateHandle);
+
+		// Stopped the server and once again moved to a copy of the level we were in, so set the world again.
+		World = NewWorld;
+		
+		OnFailure.Broadcast();
+	});
+
+	APlayerController* PlayerController = World->GetFirstPlayerController();
+	if(PlayerController) PlayerController->ClientTravel(TEXT("MainMenu"), TRAVEL_Absolute);
 }

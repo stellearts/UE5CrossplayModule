@@ -26,6 +26,9 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyUserPromotedDelegate, const FString&
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnSessionIDAttributeAdded, const FString&);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyAttributeChanged, const FLobbyAttribute&);
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLobbyStartedDelegate, const FString& ServerAddress);
+DECLARE_MULTICAST_DELEGATE(FOnLobbyStoppedDelegate);
+
 USTRUCT(BlueprintType)
 struct FLatentActionInfos
 {
@@ -68,6 +71,9 @@ public:
 	FOnSessionIDAttributeAdded OnSessionIDAttributeChanged; // For joining a session
 	FOnLobbyAttributeChanged OnLobbyAttributeChanged; // Custom lobby attribute
 
+	FOnLobbyStartedDelegate OnLobbyStartedDelegate;
+	FOnLobbyStoppedDelegate OnLobbyStoppedDelegate;
+
 private:
 	FDelegateHandle StartServerCompleteDelegateHandle;
 	
@@ -85,7 +91,6 @@ private:
 	static void OnJoinLobbyComplete(const EOS_Lobby_JoinLobbyCallbackInfo* Data);
 
 public:
-	
 	FORCEINLINE void SetAttribute(const FLobbyAttribute& Attribute, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback) { SetAttributes(TArray<FLobbyAttribute>{Attribute}, OnCompleteCallback); }
 	void SetAttributes(TArray<FLobbyAttribute> Attributes, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback);
 	void SetSpecialAttribute(const FString& Key, const FString& Value, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback);
