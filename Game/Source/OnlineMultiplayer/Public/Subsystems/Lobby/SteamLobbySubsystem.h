@@ -20,7 +20,7 @@ inline DEFINE_LOG_CATEGORY(LogSteamLobbySubsystem);
 
 
 /**
- * Subsystem for managing Steam friends
+ * Subsystem for managing Steam Lobbies
  */
 UCLASS()
 class ONLINEMULTIPLAYER_API USteamLobbySubsystem : public UPlatformLobbySubsystemBase
@@ -29,6 +29,7 @@ class ONLINEMULTIPLAYER_API USteamLobbySubsystem : public UPlatformLobbySubsyste
 
 protected:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	virtual void Deinitialize() override;
 
 public:
 	virtual void CreateLobby() override;

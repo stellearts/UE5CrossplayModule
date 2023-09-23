@@ -93,7 +93,6 @@ private:
 public:
 	FORCEINLINE void SetAttribute(const FLobbyAttribute& Attribute, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback) { SetAttributes(TArray<FLobbyAttribute>{Attribute}, OnCompleteCallback); }
 	void SetAttributes(TArray<FLobbyAttribute> Attributes, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback);
-	void SetSpecialAttribute(const FString& Key, const FString& Value, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback);
 
 private:
 	TArray<FLobbyAttribute> FilterAttributes(TArray<FLobbyAttribute>& Attributes);

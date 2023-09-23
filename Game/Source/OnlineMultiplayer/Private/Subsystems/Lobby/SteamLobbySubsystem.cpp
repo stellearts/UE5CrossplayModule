@@ -19,6 +19,19 @@ void USteamLobbySubsystem::Initialize(FSubsystemCollectionBase& Collection)
 
 	LocalUserSubsystem = Collection.InitializeDependency<ULocalUserSubsystem>();
 	LobbySubsystem = Collection.InitializeDependency<ULobbySubsystem>();
+
+	// OnLobbyDataUpdateCompleteCallback.Register(this, &ThisClass::OnLobbyDataUpdateComplete);
+	// OnJoinLobbyRequestCallback.Register(this, &ThisClass::OnJoinLobbyRequest);
+	// OnJoinRichPresenceRequestCallback.Register(this, &ThisClass::OnJoinRichPresenceRequest);
+}
+
+void USteamLobbySubsystem::Deinitialize()
+{
+	// OnLobbyDataUpdateCompleteCallback.Unregister();
+	// OnJoinLobbyRequestCallback.Unregister();
+	// OnJoinRichPresenceRequestCallback.Unregister();
+	
+	Super::Deinitialize();
 }
 
 

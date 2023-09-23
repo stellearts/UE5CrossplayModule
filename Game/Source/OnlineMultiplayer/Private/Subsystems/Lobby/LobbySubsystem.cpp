@@ -440,15 +440,6 @@ void ULobbySubsystem::SetAttributes(TArray<FLobbyAttribute> Attributes, TFunctio
 	}
 }
 
-void ULobbySubsystem::SetSpecialAttribute(const FString& Key, const FString& Value, TFunction<void(const bool bWasSuccessful)> OnCompleteCallback)
-{
-	if(!SpecialAttributes.Contains(Key))
-	{
-		UE_LOG(LogLobbySubsystem, Error, TEXT("'%s' is not a special attribute, use ::SetAttribute(s) for setting custom attributes on the lobby."), *Key);
-		return;
-	}
-}
-
 TArray<FLobbyAttribute> ULobbySubsystem::FilterAttributes(TArray<FLobbyAttribute>& Attributes)
 {
 	TArray<FLobbyAttribute> ChangedAttributes;
@@ -643,8 +634,14 @@ void ULobbySubsystem::OnLobbyUpdate(const EOS_Lobby_LobbyUpdateReceivedCallbackI
     	// Broadcast corresponding delegate.
     	if(const FString Key = LatestAttribute.Key; Key == "ServerAddress")
     	{
+    		ULocalUserSubsystem* LocalUserSubsystem = LobbySubsystem->GetGameInstance()->GetSubsystem<ULocalUserSubsystem>();
+    		
     		// If the Server-Address is set, it means that the host wants to start the server and is waiting for members to join.
-    		if(!LatestAttribute.StringValue.IsEmpty()) LobbySubsystem->OnLobbyStartedDelegate.Broadcast(LatestAttribute.StringValue); // todo Only broadcast when not the owner.
+    		if(!LatestAttribute.StringValue.IsEmpty())
+    		{
+    			// Don't broadcast to the owner of the lobby.
+    			if(LobbySubsystem->Lobby.OwnerID != LocalUserSubsystem->GetLocalUser()->GetProductUserID()) LobbySubsystem->OnLobbyStartedDelegate.Broadcast(LatestAttribute.StringValue);
+    		}
     		else LobbySubsystem->OnLobbyStoppedDelegate.Broadcast();
     	}else
     	{

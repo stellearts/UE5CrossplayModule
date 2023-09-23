@@ -34,12 +34,15 @@ class UStartListenServer : public UOnlineBlueprintCallProxyBase
 	
 	virtual void Activate() override;
 	void OnHttpRequestCompleted(TSharedPtr<class IHttpRequest, ESPMode::ThreadSafe> Request, TSharedPtr<class IHttpResponse, ESPMode::ThreadSafe> Response, bool bWasSuccessful);
+	void ServerStarted(UWorld* NewWorld);
 	void WaitForPlayersToJoin(ULobbySubsystem* LobbySubsystem);
 	void StopServer();
+	void ServerStopped(UWorld* NewWorld);
 	
 	
 private:
 	UPROPERTY() UWorld* World;
+	
 	FString ResponseString;
 	FDelegateHandle StartServerCompleteDelegateHandle;
 	FDelegateHandle StopServerCompleteDelegateHandle;
@@ -47,5 +50,5 @@ private:
 	
 	TArray<FString> JoinedMembers;
 	FTimerHandle TimeoutTimerHandle;
-	static constexpr float TimeoutDuration = 30.0f;
+	static constexpr float TimeoutDuration = 12.0f;
 };

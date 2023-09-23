@@ -19,6 +19,7 @@ DECLARE_MULTICAST_DELEGATE(FOnServerCreatedDelegate);
 
 /**
  * Subsystem for managing sessions.
+ * CURRENTLY UNUSED.
  */
 UCLASS(BlueprintType)
 class ONLINEMULTIPLAYER_API USessionSubsystem : public UGameInstanceSubsystem
